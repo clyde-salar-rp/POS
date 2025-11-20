@@ -4,7 +4,6 @@ import java.io.*;
 import java.util.*;
 import org.example.Product;
 
-
 public class PricebookParser {
     private Map<String, Product> productMap;
 
@@ -26,7 +25,7 @@ public class PricebookParser {
                     String description = parts[1].trim();
                     double price = Double.parseDouble(parts[2].trim());
 
-                    Product product = new Product();
+                    Product product = new Product(upc, description, price);
                     productMap.put(upc, product);
 
                     count++;
