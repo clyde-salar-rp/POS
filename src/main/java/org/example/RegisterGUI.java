@@ -1,6 +1,7 @@
 package org.example;
 
 import javax.swing.*;
+import javax.swing.border.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
@@ -15,6 +16,16 @@ public class RegisterGUI extends JFrame {
     private double runningTotal;
     private BarcodeScannerListener scannerListener;
 
+    // Modern color palette
+    private static final Color PRIMARY_BG = new Color(248, 249, 250);
+    private static final Color CARD_BG = Color.WHITE;
+    private static final Color ACCENT_COLOR = new Color(79, 70, 229);
+    private static final Color SUCCESS_COLOR = new Color(16, 185, 129);
+    private static final Color ERROR_COLOR = new Color(239, 68, 68);
+    private static final Color TEXT_PRIMARY = new Color(17, 24, 39);
+    private static final Color TEXT_SECONDARY = new Color(107, 114, 128);
+    private static final Color BORDER_COLOR = new Color(229, 231, 235);
+
     public RegisterGUI() {
         parser = new PricebookParser();
         scannedItems = new ArrayList<>();
@@ -23,9 +34,12 @@ public class RegisterGUI extends JFrame {
         loadPricebook();
 
         setTitle("POS Register");
-        setSize(800, 600);
+        setSize(900, 650);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLayout(new BorderLayout(10, 10));
+        setLocationRelativeTo(null);
+
+        getContentPane().setBackground(PRIMARY_BG);
+        setLayout(new BorderLayout(0, 0));
 
         createScanPanel();
         createItemDisplay();
@@ -68,12 +82,47 @@ public class RegisterGUI extends JFrame {
     }
 
     private void createScanPanel() {
-        JPanel scanPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        scanPanel.setBorder(BorderFactory.createTitledBorder("Manual Entry / Barcode Scanner"));
+        JPanel outerPanel = new JPanel(new BorderLayout());
+        outerPanel.setBackground(CARD_BG);
+        outerPanel.setBorder(new CompoundBorder(
+                new MatteBorder(0, 0, 1, 0, BORDER_COLOR),
+                new EmptyBorder(20, 25, 20, 25)
+        ));
+
+        JPanel scanPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 0));
+        scanPanel.setBackground(CARD_BG);
 
         JLabel scanLabel = new JLabel("UPC:");
-        scanField = new JTextField(20);
+        scanLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        scanLabel.setForeground(TEXT_PRIMARY);
+
+        scanField = new JTextField(25);
+        scanField.setFont(new Font("Monospaced", Font.PLAIN, 14));
+        scanField.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER_COLOR, 1),
+                BorderFactory.createEmptyBorder(8, 12, 8, 12)
+        ));
+        scanField.setBackground(PRIMARY_BG);
+
         JButton scanButton = new JButton("Manual Scan");
+        scanButton.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        scanButton.setBackground(ACCENT_COLOR);
+        scanButton.setForeground(Color.WHITE);
+        scanButton.setFocusPainted(false);
+        scanButton.setBorderPainted(false);
+        scanButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        scanButton.setBorder(new EmptyBorder(8, 20, 8, 20));
+
+        scanButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                scanButton.setBackground(new Color(67, 56, 202));
+            }
+            @Override
+            public void mouseExited(MouseEvent e) {
+                scanButton.setBackground(ACCENT_COLOR);
+            }
+        });
 
         // Manual entry with Enter key
         scanField.addActionListener(e -> processScannedItem(scanField.getText(), "MANUAL_ENTRY"));
@@ -83,33 +132,81 @@ public class RegisterGUI extends JFrame {
         scanPanel.add(scanField);
         scanPanel.add(scanButton);
 
-        add(scanPanel, BorderLayout.NORTH);
+        outerPanel.add(scanPanel, BorderLayout.CENTER);
+        add(outerPanel, BorderLayout.NORTH);
     }
 
     private void createItemDisplay() {
+        JPanel outerPanel = new JPanel(new BorderLayout());
+        outerPanel.setBackground(PRIMARY_BG);
+        outerPanel.setBorder(new EmptyBorder(20, 25, 20, 25));
+
         JPanel displayPanel = new JPanel(new BorderLayout());
-        displayPanel.setBorder(BorderFactory.createTitledBorder("Cashier Display"));
+        displayPanel.setBackground(CARD_BG);
+        displayPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER_COLOR, 1),
+                BorderFactory.createEmptyBorder(20, 20, 20, 20)
+        ));
+
+        JLabel titleLabel = new JLabel("Cashier Display");
+        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
+        titleLabel.setForeground(TEXT_PRIMARY);
+        titleLabel.setBorder(new EmptyBorder(0, 0, 15, 0));
 
         itemDisplay = new JTextArea(20, 60);
         itemDisplay.setEditable(false);
-        itemDisplay.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        itemDisplay.setFont(new Font("Monospaced", Font.PLAIN, 13));
+        itemDisplay.setBackground(new Color(249, 250, 251));
+        itemDisplay.setForeground(TEXT_PRIMARY);
+        itemDisplay.setBorder(new EmptyBorder(15, 15, 15, 15));
 
         JScrollPane scrollPane = new JScrollPane(itemDisplay);
+        scrollPane.setBorder(null);
+        scrollPane.getViewport().setBackground(new Color(249, 250, 251));
+
+        displayPanel.add(titleLabel, BorderLayout.NORTH);
         displayPanel.add(scrollPane, BorderLayout.CENTER);
 
-        add(displayPanel, BorderLayout.CENTER);
+        outerPanel.add(displayPanel, BorderLayout.CENTER);
+        add(outerPanel, BorderLayout.CENTER);
     }
 
     private void createTotalDisplay() {
         JPanel totalPanel = new JPanel(new BorderLayout());
-        totalPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-        totalLabel = new JLabel("TOTAL: $0.00");
-        totalLabel.setFont(new Font("Arial", Font.BOLD, 24));
-        totalLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+        totalPanel.setBackground(CARD_BG);
+        totalPanel.setBorder(new CompoundBorder(
+                new MatteBorder(1, 0, 0, 0, BORDER_COLOR),
+                new EmptyBorder(25, 25, 25, 25)
+        ));
 
         JButton clearButton = new JButton("Clear Transaction");
+        clearButton.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        clearButton.setBackground(PRIMARY_BG);
+        clearButton.setForeground(TEXT_PRIMARY);
+        clearButton.setFocusPainted(false);
+        clearButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        clearButton.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER_COLOR, 1),
+                BorderFactory.createEmptyBorder(10, 20, 10, 20)
+        ));
+
+        clearButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                clearButton.setBackground(new Color(243, 244, 246));
+            }
+            @Override
+            public void mouseExited(MouseEvent e) {
+                clearButton.setBackground(PRIMARY_BG);
+            }
+        });
+
         clearButton.addActionListener(e -> clearTransaction());
+
+        totalLabel = new JLabel("TOTAL: $0.00");
+        totalLabel.setFont(new Font("SansSerif", Font.BOLD, 32));
+        totalLabel.setForeground(TEXT_PRIMARY);
+        totalLabel.setHorizontalAlignment(SwingConstants.RIGHT);
 
         totalPanel.add(clearButton, BorderLayout.WEST);
         totalPanel.add(totalLabel, BorderLayout.EAST);
@@ -157,23 +254,23 @@ public class RegisterGUI extends JFrame {
 
     private void flashScanField(boolean success) {
         Color originalColor = scanField.getBackground();
-        Color flashColor = success ? new Color(200, 255, 200) : new Color(255, 200, 200);
+        Color flashColor = success ? new Color(220, 252, 231) : new Color(254, 226, 226);
 
         scanField.setBackground(flashColor);
-        Timer timer = new Timer(200, e -> scanField.setBackground(originalColor));
+        Timer timer = new Timer(300, e -> scanField.setBackground(originalColor));
         timer.setRepeats(false);
         timer.start();
     }
 
     private void updateDisplay() {
         StringBuilder display = new StringBuilder();
-        display.append(String.format("%-15s %-40s %10s\n", "UPC", "DESCRIPTION", "PRICE"));
-        display.append("-".repeat(70)).append("\n");
+        display.append(String.format("%-18s  %-45s  %12s\n", "UPC", "DESCRIPTION", "PRICE"));
+        display.append("─".repeat(80)).append("\n\n");
 
         for (Product item : scannedItems) {
-            display.append(String.format("%-15s %-40s $%9.2f\n",
+            display.append(String.format("%-18s  %-45s  $%10.2f\n",
                     item.getUpc(),
-                    truncate(item.getDescription(), 40),
+                    truncate(item.getDescription(), 45),
                     item.getPrice()));
         }
 
@@ -261,5 +358,4 @@ public class RegisterGUI extends JFrame {
             return false;
         }
     }
-
 }
