@@ -1,15 +1,14 @@
 package org.example;
 
 import org.example.model.Product;
+import org.example.util.BarcodeScannerListener;
 
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.MatteBorder;
 import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableRowSorter;
 import java.awt.*;
-import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -51,8 +50,11 @@ public class RegisterGUI extends JFrame {
         createItemDisplay();
         createTotalDisplay();
 
-        // Initialize barcode scanner listener
-        scannerListener = new BarcodeScannerListener();
+        // Initialize barcode scanner listener with callback
+        scannerListener = new BarcodeScannerListener(
+                (barcode, source) -> processScannedItem(barcode, source),
+                scanField
+        );
         KeyboardFocusManager.getCurrentKeyboardFocusManager()
                 .addKeyEventDispatcher(scannerListener);
 
@@ -112,8 +114,14 @@ public class RegisterGUI extends JFrame {
 
         JButton scanButton = createStyledButton("Manual Scan", ACCENT_COLOR, Color.WHITE);
 
-        // Manual entry with Enter key
-        scanField.addActionListener(e -> processScannedItem(scanField.getText(), "MANUAL_ENTRY"));
+        // Manual entry with Enter key - only processes if not overridden by scanner
+        scanField.addActionListener(e -> {
+            // Check if scanner listener is initialized and if rapid input was detected
+            if (scannerListener == null || !scannerListener.isRapidInputDetected()) {
+                processScannedItem(scanField.getText(), "MANUAL_ENTRY");
+            }
+        });
+
         scanButton.addActionListener(e -> processScannedItem(scanField.getText(), "MANUAL_ENTRY"));
 
         scanPanel.add(scanLabel);
@@ -329,61 +337,16 @@ public class RegisterGUI extends JFrame {
         tableModel.setRowCount(0);
         totalLabel.setText("TOTAL: $0.00");
         scanField.setText("");
+
+        // Reset scanner state
+        if (scannerListener != null) {
+            scannerListener.reset();
+        }
+
         logEvent("SYSTEM", "Transaction cleared");
     }
 
     private void logEvent(String source, String message) {
         System.out.println("[" + source + "] " + message);
-    }
-
-    /**
-     * Barcode Scanner Listener
-     * Captures rapid keyboard input from physical barcode scanners
-     */
-    private class BarcodeScannerListener implements KeyEventDispatcher {
-        private StringBuilder buffer = new StringBuilder();
-        private long lastKeyTime = 0;
-        private static final long SCANNER_SPEED_THRESHOLD = 50;
-        private static final int MIN_BARCODE_LENGTH = 8;
-
-        @Override
-        public boolean dispatchKeyEvent(KeyEvent e) {
-            if (e.getID() != KeyEvent.KEY_TYPED || e.getComponent() == scanField) {
-                return false;
-            }
-
-            long currentTime = System.currentTimeMillis();
-            long timeSinceLastKey = currentTime - lastKeyTime;
-
-            if (timeSinceLastKey > SCANNER_SPEED_THRESHOLD && buffer.length() > 0) {
-                buffer.setLength(0);
-            }
-
-            lastKeyTime = currentTime;
-            char c = e.getKeyChar();
-
-            if (c == '\n' || c == '\r') {
-                if (buffer.length() >= MIN_BARCODE_LENGTH) {
-                    String scannedCode = buffer.toString();
-                    buffer.setLength(0);
-
-                    SwingUtilities.invokeLater(() -> {
-                        processScannedItem(scannedCode, "BARCODE_SCANNER");
-                    });
-
-                    return true;
-                } else {
-                    buffer.setLength(0);
-                }
-            } else if (Character.isLetterOrDigit(c) || c == '-') {
-                buffer.append(c);
-
-                if (buffer.length() > 50) {
-                    buffer.setLength(0);
-                }
-            }
-
-            return false;
-        }
     }
 }
