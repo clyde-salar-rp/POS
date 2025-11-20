@@ -125,8 +125,8 @@ public class RegisterGUI extends JFrame {
         });
 
         // Manual entry with Enter key
-        scanField.addActionListener(e -> processScannedItem(scanField.getText(), "MANUAL_ENTRY"));
-        scanButton.addActionListener(e -> processScannedItem(scanField.getText(), "MANUAL_ENTRY"));
+        scanField.addActionListener(e -> processScannedItem(scanField.getText(), "SCANNED_ENTRY"));
+        scanButton.addActionListener(e -> processScannedItem(scanField.getText(), "SCANNED_ENTRY"));
 
         scanPanel.add(scanLabel);
         scanPanel.add(scanField);
