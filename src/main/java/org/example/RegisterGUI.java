@@ -230,10 +230,8 @@ public class RegisterGUI extends JFrame {
             scannedItems.add(product);
             runningTotal += product.getPrice();
 
-            logEvent(source, "Item found in HashMap");
-            logEvent(source, "  Description: " + product.getDescription());
-            logEvent(source, "  Price: $" + String.format("%.2f", product.getPrice()));
-            logEvent(source, "  UPC: " + product.getUpc());
+            logEvent(source, String.format("Item found - UPC: %s, Desc: %s, Price: $%.2f",
+                    product.getUpc(), product.getDescription(), product.getPrice()));
 
             updateDisplay();
 
