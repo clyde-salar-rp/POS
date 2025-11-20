@@ -1,16 +1,25 @@
 package org.example;
 
+import org.example.model.Product;
+
 import javax.swing.*;
-import javax.swing.border.*;
+import javax.swing.border.CompoundBorder;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.MatteBorder;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
-import java.awt.event.*;
-import java.io.*;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.io.File;
 import java.util.ArrayList;
 
 public class RegisterGUI extends JFrame {
     private PricebookParser parser;
     private JTextField scanField;
-    private JTextArea itemDisplay;
+    private JTable itemTable;
+    private DefaultTableModel tableModel;
     private JLabel totalLabel;
     private ArrayList<Product> scannedItems;
     private double runningTotal;
@@ -20,10 +29,7 @@ public class RegisterGUI extends JFrame {
     private static final Color PRIMARY_BG = new Color(248, 249, 250);
     private static final Color CARD_BG = Color.WHITE;
     private static final Color ACCENT_COLOR = new Color(79, 70, 229);
-    private static final Color SUCCESS_COLOR = new Color(16, 185, 129);
-    private static final Color ERROR_COLOR = new Color(239, 68, 68);
     private static final Color TEXT_PRIMARY = new Color(17, 24, 39);
-    private static final Color TEXT_SECONDARY = new Color(107, 114, 128);
     private static final Color BORDER_COLOR = new Color(229, 231, 235);
 
     public RegisterGUI() {
@@ -34,7 +40,7 @@ public class RegisterGUI extends JFrame {
         loadPricebook();
 
         setTitle("POS Register");
-        setSize(900, 650);
+        setSize(1000, 700);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
@@ -104,29 +110,11 @@ public class RegisterGUI extends JFrame {
         ));
         scanField.setBackground(PRIMARY_BG);
 
-        JButton scanButton = new JButton("Manual Scan");
-        scanButton.setFont(new Font("SansSerif", Font.PLAIN, 13));
-        scanButton.setBackground(ACCENT_COLOR);
-        scanButton.setForeground(Color.WHITE);
-        scanButton.setFocusPainted(false);
-        scanButton.setBorderPainted(false);
-        scanButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        scanButton.setBorder(new EmptyBorder(8, 20, 8, 20));
-
-        scanButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                scanButton.setBackground(new Color(67, 56, 202));
-            }
-            @Override
-            public void mouseExited(MouseEvent e) {
-                scanButton.setBackground(ACCENT_COLOR);
-            }
-        });
+        JButton scanButton = createStyledButton("Manual Scan", ACCENT_COLOR, Color.WHITE);
 
         // Manual entry with Enter key
-        scanField.addActionListener(e -> processScannedItem(scanField.getText(), "SCANNED_ENTRY"));
-        scanButton.addActionListener(e -> processScannedItem(scanField.getText(), "SCANNED_ENTRY"));
+        scanField.addActionListener(e -> processScannedItem(scanField.getText(), "MANUAL_ENTRY"));
+        scanButton.addActionListener(e -> processScannedItem(scanField.getText(), "MANUAL_ENTRY"));
 
         scanPanel.add(scanLabel);
         scanPanel.add(scanField);
@@ -148,21 +136,45 @@ public class RegisterGUI extends JFrame {
                 BorderFactory.createEmptyBorder(20, 20, 20, 20)
         ));
 
-        JLabel titleLabel = new JLabel("Cashier Display");
+        JLabel titleLabel = new JLabel("Transaction Items");
         titleLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
         titleLabel.setForeground(TEXT_PRIMARY);
         titleLabel.setBorder(new EmptyBorder(0, 0, 15, 0));
 
-        itemDisplay = new JTextArea(20, 60);
-        itemDisplay.setEditable(false);
-        itemDisplay.setFont(new Font("Monospaced", Font.PLAIN, 13));
-        itemDisplay.setBackground(new Color(249, 250, 251));
-        itemDisplay.setForeground(TEXT_PRIMARY);
-        itemDisplay.setBorder(new EmptyBorder(15, 15, 15, 15));
+        // Create table with columns
+        String[] columnNames = {"#", "UPC", "Description", "Price"};
+        tableModel = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false; // Make table read-only
+            }
+        };
 
-        JScrollPane scrollPane = new JScrollPane(itemDisplay);
+        itemTable = new JTable(tableModel);
+        itemTable.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        itemTable.setRowHeight(32);
+        itemTable.setShowVerticalLines(false);
+        itemTable.setGridColor(BORDER_COLOR);
+        itemTable.setSelectionBackground(new Color(238, 242, 255));
+        itemTable.setSelectionForeground(TEXT_PRIMARY);
+        itemTable.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 13));
+        itemTable.getTableHeader().setBackground(PRIMARY_BG);
+        itemTable.getTableHeader().setForeground(TEXT_PRIMARY);
+        itemTable.getTableHeader().setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, BORDER_COLOR));
+
+        // Set column widths
+        itemTable.getColumnModel().getColumn(0).setPreferredWidth(50);  // #
+        itemTable.getColumnModel().getColumn(1).setPreferredWidth(150); // UPC
+        itemTable.getColumnModel().getColumn(2).setPreferredWidth(400); // Description
+        itemTable.getColumnModel().getColumn(3).setPreferredWidth(100); // Price
+
+        // Right-align price column
+        var priceRenderer = new javax.swing.table.DefaultTableCellRenderer();
+        priceRenderer.setHorizontalAlignment(SwingConstants.RIGHT);
+        itemTable.getColumnModel().getColumn(3).setCellRenderer(priceRenderer);
+
+        JScrollPane scrollPane = new JScrollPane(itemTable);
         scrollPane.setBorder(null);
-        scrollPane.getViewport().setBackground(new Color(249, 250, 251));
 
         displayPanel.add(titleLabel, BorderLayout.NORTH);
         displayPanel.add(scrollPane, BorderLayout.CENTER);
@@ -179,39 +191,66 @@ public class RegisterGUI extends JFrame {
                 new EmptyBorder(25, 25, 25, 25)
         ));
 
-        JButton clearButton = new JButton("Clear Transaction");
-        clearButton.setFont(new Font("SansSerif", Font.PLAIN, 14));
-        clearButton.setBackground(PRIMARY_BG);
-        clearButton.setForeground(TEXT_PRIMARY);
-        clearButton.setFocusPainted(false);
-        clearButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        clearButton.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER_COLOR, 1),
-                BorderFactory.createEmptyBorder(10, 20, 10, 20)
-        ));
+        // Left side - action buttons
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        buttonPanel.setBackground(CARD_BG);
 
-        clearButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                clearButton.setBackground(new Color(243, 244, 246));
-            }
-            @Override
-            public void mouseExited(MouseEvent e) {
-                clearButton.setBackground(PRIMARY_BG);
-            }
-        });
-
+        JButton clearButton = createStyledButton("Clear Transaction", PRIMARY_BG, TEXT_PRIMARY);
         clearButton.addActionListener(e -> clearTransaction());
 
+        buttonPanel.add(clearButton);
+
+        // Right side - total
         totalLabel = new JLabel("TOTAL: $0.00");
         totalLabel.setFont(new Font("SansSerif", Font.BOLD, 32));
         totalLabel.setForeground(TEXT_PRIMARY);
         totalLabel.setHorizontalAlignment(SwingConstants.RIGHT);
 
-        totalPanel.add(clearButton, BorderLayout.WEST);
+        totalPanel.add(buttonPanel, BorderLayout.WEST);
         totalPanel.add(totalLabel, BorderLayout.EAST);
 
         add(totalPanel, BorderLayout.SOUTH);
+    }
+
+    private JButton createStyledButton(String text, Color bg, Color fg) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        button.setBackground(bg);
+        button.setForeground(fg);
+        button.setFocusPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        if (bg.equals(ACCENT_COLOR)) {
+            button.setBorderPainted(false);
+            button.setBorder(new EmptyBorder(8, 20, 8, 20));
+            button.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    button.setBackground(new Color(67, 56, 202));
+                }
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    button.setBackground(ACCENT_COLOR);
+                }
+            });
+        } else {
+            button.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(BORDER_COLOR, 1),
+                    BorderFactory.createEmptyBorder(10, 20, 10, 20)
+            ));
+            button.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    button.setBackground(new Color(243, 244, 246));
+                }
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    button.setBackground(bg);
+                }
+            });
+        }
+
+        return button;
     }
 
     private void processScannedItem(String upc, String source) {
@@ -223,7 +262,6 @@ public class RegisterGUI extends JFrame {
 
         logEvent(source, "Scanned UPC: " + upc);
 
-        // Look up item in HashMap via PricebookParser
         Product product = parser.searchByUPC(upc);
 
         if (product != null) {
@@ -234,8 +272,6 @@ public class RegisterGUI extends JFrame {
                     product.getUpc(), product.getDescription(), product.getPrice()));
 
             updateDisplay();
-
-            // Visual feedback
             flashScanField(true);
         } else {
             logEvent(source, "ERROR - UPC not found in HashMap: " + upc);
@@ -261,27 +297,36 @@ public class RegisterGUI extends JFrame {
     }
 
     private void updateDisplay() {
-        StringBuilder display = new StringBuilder();
-        display.append(String.format("%-18s  %-45s  %12s\n", "UPC", "DESCRIPTION", "PRICE"));
-        display.append("─".repeat(80)).append("\n\n");
+        // Clear existing rows
+        tableModel.setRowCount(0);
 
-        for (Product item : scannedItems) {
-            display.append(String.format("%-18s  %-45s  $%10.2f\n",
+        // Add all scanned items
+        for (int i = 0; i < scannedItems.size(); i++) {
+            Product item = scannedItems.get(i);
+            Object[] row = {
+                    i + 1,
                     item.getUpc(),
-                    truncate(item.getDescription(), 45),
-                    item.getPrice()));
+                    item.getDescription(),
+                    String.format("$%.2f", item.getPrice())
+            };
+            tableModel.addRow(row);
         }
 
-        itemDisplay.setText(display.toString());
+        // Update total
         totalLabel.setText("TOTAL: $" + String.format("%.2f", runningTotal));
 
-        itemDisplay.setCaretPosition(itemDisplay.getDocument().getLength());
+        // Scroll to bottom
+        if (itemTable.getRowCount() > 0) {
+            itemTable.scrollRectToVisible(
+                    itemTable.getCellRect(itemTable.getRowCount() - 1, 0, true)
+            );
+        }
     }
 
     private void clearTransaction() {
         scannedItems.clear();
         runningTotal = 0.0;
-        itemDisplay.setText("");
+        tableModel.setRowCount(0);
         totalLabel.setText("TOTAL: $0.00");
         scanField.setText("");
         logEvent("SYSTEM", "Transaction cleared");
@@ -291,27 +336,18 @@ public class RegisterGUI extends JFrame {
         System.out.println("[" + source + "] " + message);
     }
 
-    private String truncate(String str, int maxLength) {
-        if (str.length() <= maxLength) {
-            return str;
-        }
-        return str.substring(0, maxLength - 3) + "...";
-    }
-
     /**
      * Barcode Scanner Listener
      * Captures rapid keyboard input from physical barcode scanners
-     * Real scanners type the full barcode + Enter in <100ms
      */
     private class BarcodeScannerListener implements KeyEventDispatcher {
         private StringBuilder buffer = new StringBuilder();
         private long lastKeyTime = 0;
-        private static final long SCANNER_SPEED_THRESHOLD = 50; // ms between chars
-        private static final int MIN_BARCODE_LENGTH = 8; // Minimum UPC length
+        private static final long SCANNER_SPEED_THRESHOLD = 50;
+        private static final int MIN_BARCODE_LENGTH = 8;
 
         @Override
         public boolean dispatchKeyEvent(KeyEvent e) {
-            // Only process key typed events, not from the manual entry field
             if (e.getID() != KeyEvent.KEY_TYPED || e.getComponent() == scanField) {
                 return false;
             }
@@ -319,7 +355,6 @@ public class RegisterGUI extends JFrame {
             long currentTime = System.currentTimeMillis();
             long timeSinceLastKey = currentTime - lastKeyTime;
 
-            // Reset buffer if typing is too slow (human typing)
             if (timeSinceLastKey > SCANNER_SPEED_THRESHOLD && buffer.length() > 0) {
                 buffer.setLength(0);
             }
@@ -327,27 +362,22 @@ public class RegisterGUI extends JFrame {
             lastKeyTime = currentTime;
             char c = e.getKeyChar();
 
-            // Handle Enter/Return - process the scanned barcode
             if (c == '\n' || c == '\r') {
                 if (buffer.length() >= MIN_BARCODE_LENGTH) {
                     String scannedCode = buffer.toString();
                     buffer.setLength(0);
 
-                    // Process on EDT
                     SwingUtilities.invokeLater(() -> {
                         processScannedItem(scannedCode, "BARCODE_SCANNER");
                     });
 
-                    return true; // Consume the event
+                    return true;
                 } else {
                     buffer.setLength(0);
                 }
-            }
-            // Build up the barcode - accept digits and some letters
-            else if (Character.isLetterOrDigit(c) || c == '-') {
+            } else if (Character.isLetterOrDigit(c) || c == '-') {
                 buffer.append(c);
 
-                // Prevent buffer overflow
                 if (buffer.length() > 50) {
                     buffer.setLength(0);
                 }

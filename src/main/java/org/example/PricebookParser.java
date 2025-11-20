@@ -2,7 +2,7 @@ package org.example;
 
 import java.io.*;
 import java.util.*;
-import org.example.Product;
+import org.example.model.Product;
 
 public class PricebookParser {
     private Map<String, Product> productMap;
