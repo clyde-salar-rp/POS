@@ -16,7 +16,7 @@ public class ItemsPanel extends JPanel {
         setBackground(Color.WHITE);
         setBorder(new EmptyBorder(15, 15, 15, 15));
 
-        String[] columns = {"#", "UPC", "Description", "Price"};
+        String[] columns = {"Qty", "UPC", "Description", "Price"};
         tableModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -41,7 +41,7 @@ public class ItemsPanel extends JPanel {
         for (int i = 0; i < items.size(); i++) {
             Product p = items.get(i);
             tableModel.addRow(new Object[]{
-                    i + 1, p.getUpc(), p.getDescription(), String.format("$%.2f", p.getPrice())
+                     1, p.getUpc(), p.getDescription(), String.format("$%.2f", p.getPrice())
             });
         }
 

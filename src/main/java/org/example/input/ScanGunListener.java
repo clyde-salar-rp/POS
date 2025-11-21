@@ -13,7 +13,7 @@ public class ScanGunListener implements KeyEventDispatcher {
     private long lastKeyTime = 0;
     private long firstKeyTime = 0;
     private boolean scannerDetected = false;
-    private static final long MAX_DELAY_MS = 50; // Fast typing threshold
+    private static final long MAX_DELAY_MS = 25; // Fast typing threshold
 
     public ScanGunListener(BiConsumer<String, String> scanCallback, JTextField manualField) {
         this.scanCallback = scanCallback;
