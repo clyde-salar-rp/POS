@@ -32,8 +32,16 @@ public class RegisterWindow extends JFrame {
         loadPricebook();
         setupUI();
         setupScanGun();
+        setupShutdownHook();
 
         journal.logSystem("Register initialized with " + database.getProductCount() + " products");
+    }
+
+    private void setupShutdownHook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            journal.logSystem("Shutting down - closing database connection");
+            database.close();
+        }));
     }
 
     private void loadPricebook() {
@@ -62,6 +70,15 @@ public class RegisterWindow extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
+        // Add menu bar
+        JMenuBar menuBar = new JMenuBar();
+        JMenu toolsMenu = new JMenu("Tools");
+        JMenuItem dbInspectorItem = new JMenuItem("Database Inspector");
+        dbInspectorItem.addActionListener(e -> openDatabaseInspector());
+        toolsMenu.add(dbInspectorItem);
+        menuBar.add(toolsMenu);
+        setJMenuBar(menuBar);
+
         scanPanel = new ScanPanel(this::processUPC);
         itemsPanel = new ItemsPanel();
         totalPanel = new TotalPanel(this::voidTransaction);
@@ -85,6 +102,10 @@ public class RegisterWindow extends JFrame {
         add(rightPanel, BorderLayout.EAST);
 
         setVisible(true);
+    }
+
+    private void openDatabaseInspector() {
+        new org.example.DatabaseInspector();
     }
 
     private void setupScanGun() {
@@ -127,16 +148,33 @@ public class RegisterWindow extends JFrame {
         }
 
         int selectedRow = itemsPanel.getSelectedRow();
-        if (selectedRow >= 0) {
-            TransactionItem item = transaction.getItems().get(selectedRow);
-            journal.logVoidItem(item);
-            transaction.getItems().remove(selectedRow);
-        } else {
-            TransactionItem item = transaction.getLastItem();
-            journal.logVoidItem(item);
-            transaction.voidLastItem();
+        if (selectedRow < 0) {
+            JOptionPane.showMessageDialog(this,
+                    "Please select an item to void",
+                    "No Selection", JOptionPane.WARNING_MESSAGE);
+            return;
         }
-        updateDisplay();
+
+        TransactionItem item = transaction.getItem(selectedRow);
+        if (item == null) {
+            JOptionPane.showMessageDialog(this, "Invalid item selection");
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this,
+                String.format("Void this item?\n\n%s\nQty: %d\nPrice: $%.2f",
+                        item.getProduct().getDescription(),
+                        item.getQuantity(),
+                        item.getLineTotal()),
+                "Confirm Void",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE);
+
+        if (confirm == JOptionPane.YES_OPTION) {
+            journal.logVoidItem(item);
+            transaction.voidItem(selectedRow);
+            updateDisplay();
+        }
     }
 
     private void changeQuantity() {
@@ -151,7 +189,12 @@ public class RegisterWindow extends JFrame {
             return;
         }
 
-        TransactionItem item = transaction.getItems().get(selectedRow);
+        TransactionItem item = transaction.getItem(selectedRow);
+        if (item == null) {
+            JOptionPane.showMessageDialog(this, "Invalid item selection");
+            return;
+        }
+
         String input = JOptionPane.showInputDialog(this,
                 "Enter new quantity for " + item.getProduct().getDescription() + ":",
                 item.getQuantity());

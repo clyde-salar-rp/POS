@@ -19,6 +19,12 @@ public class Transaction {
         items.add(new TransactionItem(product, quantity));
     }
 
+    public void voidItem(int index) {
+        if (index >= 0 && index < items.size()) {
+            items.remove(index);
+        }
+    }
+
     public void voidLastItem() {
         if (!items.isEmpty()) {
             items.remove(items.size() - 1);
@@ -37,6 +43,13 @@ public class Transaction {
 
     public List<TransactionItem> getItems() {
         return new ArrayList<>(items);
+    }
+
+    public TransactionItem getItem(int index) {
+        if (index >= 0 && index < items.size()) {
+            return items.get(index);
+        }
+        return null;
     }
 
     public double getSubtotal() {
