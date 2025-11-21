@@ -284,12 +284,21 @@ public class RegisterWindow extends JFrame {
                     "Success", JOptionPane.INFORMATION_MESSAGE);
         }
 
-        voidTransaction();
+        completeTransaction();
     }
 
     private void voidTransaction() {
         if (transaction.getItemCount() > 0) {
             journal.logTransaction("VOIDED", transaction.getTotal());
+        }
+        transaction.clear();
+        updateDisplay();
+        scanGunListener.reset();
+    }
+
+    private void completeTransaction() {
+        if(transaction.getItemCount() > 0) {
+            journal.logTransaction("COMPLETED", transaction.getTotal());
         }
         transaction.clear();
         updateDisplay();
