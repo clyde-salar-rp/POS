@@ -1,6 +1,6 @@
 package org.example.ui.components;
 
-import org.example.model.Product;
+import org.example.model.TransactionItem;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
@@ -16,7 +16,7 @@ public class ItemsPanel extends JPanel {
         setBackground(Color.WHITE);
         setBorder(new EmptyBorder(15, 15, 15, 15));
 
-        String[] columns = {"Qty", "UPC", "Description", "Price"};
+        String[] columns = {"Qty", "UPC", "Description", "Price", "Total"};
         tableModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -29,19 +29,23 @@ public class ItemsPanel extends JPanel {
         table.setRowHeight(28);
         table.getColumnModel().getColumn(0).setPreferredWidth(40);
         table.getColumnModel().getColumn(1).setPreferredWidth(120);
-        table.getColumnModel().getColumn(2).setPreferredWidth(300);
-        table.getColumnModel().getColumn(3).setPreferredWidth(80);
+        table.getColumnModel().getColumn(2).setPreferredWidth(250);
+        table.getColumnModel().getColumn(3).setPreferredWidth(70);
+        table.getColumnModel().getColumn(4).setPreferredWidth(70);
 
         JScrollPane scrollPane = new JScrollPane(table);
         add(scrollPane, BorderLayout.CENTER);
     }
 
-    public void updateItems(List<Product> items) {
+    public void updateItems(List<TransactionItem> items) {
         tableModel.setRowCount(0);
-        for (int i = 0; i < items.size(); i++) {
-            Product p = items.get(i);
+        for (TransactionItem item : items) {
             tableModel.addRow(new Object[]{
-                     1, p.getUpc(), p.getDescription(), String.format("$%.2f", p.getPrice())
+                    item.getQuantity(),
+                    item.getProduct().getUpc(),
+                    item.getProduct().getDescription(),
+                    String.format("$%.2f", item.getProduct().getPrice()),
+                    String.format("$%.2f", item.getLineTotal())
             });
         }
 
@@ -51,5 +55,9 @@ public class ItemsPanel extends JPanel {
                     table.getCellRect(table.getRowCount() - 1, 0, true)
             );
         }
+    }
+
+    public int getSelectedRow() {
+        return table.getSelectedRow();
     }
 }

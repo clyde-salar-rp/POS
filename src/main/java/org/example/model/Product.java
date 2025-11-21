@@ -14,4 +14,12 @@ public class Product {
     public String toString() {
         return String.format("UPC: %s, Desc: %s, Price: $%.2f", upc, description, price);
     }
+
+    public double getPriceWithTax() {
+        return price * 1.07;
+    }
+
+    public double getPriceWithTax(double tax) {
+        return price * tax;
+    }
 }

@@ -4,33 +4,60 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Transaction {
-    private final List<Product> items;
-    private double total;
+    private final List<TransactionItem> items;
+    private static final double TAX_RATE = 0.07;
 
     public Transaction() {
         this.items = new ArrayList<>();
-        this.total = 0.0;
     }
 
     public void addItem(Product product) {
-        items.add(product);
-        total += product.getPrice();
+        items.add(new TransactionItem(product, 1));
+    }
+
+    public void addItem(Product product, int quantity) {
+        items.add(new TransactionItem(product, quantity));
+    }
+
+    public void voidLastItem() {
+        if (!items.isEmpty()) {
+            items.remove(items.size() - 1);
+        }
+    }
+
+    public void changeQuantity(int index, int newQuantity) {
+        if (index >= 0 && index < items.size()) {
+            items.get(index).setQuantity(newQuantity);
+        }
     }
 
     public void clear() {
         items.clear();
-        total = 0.0;
     }
 
-    public List<Product> getItems() {
+    public List<TransactionItem> getItems() {
         return new ArrayList<>(items);
     }
 
+    public double getSubtotal() {
+        return items.stream()
+                .mapToDouble(item -> item.getProduct().getPrice() * item.getQuantity())
+                .sum();
+    }
+
+    public double getTax() {
+        return getSubtotal() * TAX_RATE;
+    }
+
     public double getTotal() {
-        return total;
+        return getSubtotal() + getTax();
     }
 
     public int getItemCount() {
         return items.size();
+    }
+
+    public TransactionItem getLastItem() {
+        return items.isEmpty() ? null : items.get(items.size() - 1);
     }
 }
