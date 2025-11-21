@@ -1,6 +1,7 @@
 package org.example;
 import javax.swing.*;
-import java.util.List;
+
+import org.example.ui.RegisterWindow;
 
 public class Main {
     public static void main(String[] args) {
@@ -10,6 +11,6 @@ public class Main {
             // Use default
         }
 
-        SwingUtilities.invokeLater(() -> new RegisterGUI());
+        SwingUtilities.invokeLater(RegisterWindow::new);
     }
 }
