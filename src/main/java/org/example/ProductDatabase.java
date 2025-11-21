@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.sql.*;
 
 public class ProductDatabase {
-    private Connection connection;
+    private final Connection connection;
     private static final String DB_URL = "jdbc:h2:mem:pos;DB_CLOSE_DELAY=-1";
     private static final String DB_USER = "sa";
     private static final String DB_PASSWORD = "";
@@ -62,7 +62,7 @@ public class ProductDatabase {
         String insertSQL = "INSERT INTO products (upc, description, price) VALUES (?, ?, ?)";
 
         try (BufferedReader br = new BufferedReader(new FileReader(filePath));
-             PreparedStatement pstmt = connection.prepareStatement(insertSQL)) {
+             PreparedStatement insertStatement = connection.prepareStatement(insertSQL)) {
 
             String line;
             int batchCount = 0;
@@ -74,23 +74,23 @@ public class ProductDatabase {
                     String description = parts[1].trim();
                     double price = Double.parseDouble(parts[2].trim());
 
-                    pstmt.setString(1, upc);
-                    pstmt.setString(2, description);
-                    pstmt.setDouble(3, price);
-                    pstmt.addBatch();
+                    insertStatement.setString(1, upc);
+                    insertStatement.setString(2, description);
+                    insertStatement.setDouble(3, price);
+                    insertStatement.addBatch();
 
                     batchCount++;
 
                     // Execute batch every 100 records
                     if (batchCount % 100 == 0) {
-                        pstmt.executeBatch();
+                        insertStatement.executeBatch();
                     }
                 }
             }
 
             // Execute remaining records
             if (batchCount % 100 != 0) {
-                pstmt.executeBatch();
+                insertStatement.executeBatch();
             }
 
         } catch (SQLException e) {
@@ -101,10 +101,10 @@ public class ProductDatabase {
     public Product findByUPC(String upc) {
         String sql = "SELECT upc, description, price FROM products WHERE upc = ?";
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, upc);
+        try (PreparedStatement queryByUPCStatement = connection.prepareStatement(sql)) {
+            queryByUPCStatement.setString(1, upc);
 
-            try (ResultSet rs = pstmt.executeQuery()) {
+            try (ResultSet rs = queryByUPCStatement.executeQuery()) {
                 if (rs.next()) {
                     return new Product(
                             rs.getString("upc"),
@@ -148,32 +148,5 @@ public class ProductDatabase {
         } catch (SQLException e) {
             System.err.println("Error closing database: " + e.getMessage());
         }
-    }
-
-    // Optional: Method to search by description
-    public Product[] searchByDescription(String keyword) {
-        String sql = "SELECT upc, description, price FROM products WHERE description LIKE ? LIMIT 10";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, "%" + keyword + "%");
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                java.util.List<Product> results = new java.util.ArrayList<>();
-
-                while (rs.next()) {
-                    results.add(new Product(
-                            rs.getString("upc"),
-                            rs.getString("description"),
-                            rs.getDouble("price")
-                    ));
-                }
-
-                return results.toArray(new Product[0]);
-            }
-        } catch (SQLException e) {
-            System.err.println("Error searching database: " + e.getMessage());
-        }
-
-        return new Product[0];
     }
 }
