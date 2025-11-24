@@ -10,6 +10,7 @@ import org.example.ui.components.*;
 import org.example.ui.dialogs.SuspendedTransactionsDialog;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.io.File;
 
@@ -26,6 +27,12 @@ public class RegisterWindow extends JFrame {
     private SuspendPanel suspendPanel;
     private QuickKeysPanel quickKeysPanel;
     private ScanGunListener scanGunListener;
+
+    private static final Color PRIMARY_COLOR = new Color(25, 118, 210);
+    private static final Color ACCENT_COLOR = new Color(245, 245, 250);
+    private static final Color SUCCESS_COLOR = new Color(76, 175, 80);
+    private static final Color WARNING_COLOR = new Color(255, 152, 0);
+    private static final Color DANGER_COLOR = new Color(244, 67, 54);
 
     public RegisterWindow() {
         this.database = new ProductDatabase();
@@ -69,46 +76,84 @@ public class RegisterWindow extends JFrame {
     }
 
     private void setupUI() {
-        setTitle("POS Register");
-        setSize(1100, 750);
+        setTitle("Modern POS Register");
+        setSize(1400, 850);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
+        getContentPane().setBackground(ACCENT_COLOR);
 
+        // Menu bar with modern styling
         JMenuBar menuBar = new JMenuBar();
+        menuBar.setBackground(PRIMARY_COLOR);
+        menuBar.setBorderPainted(false);
+
         JMenu toolsMenu = new JMenu("Tools");
+        toolsMenu.setForeground(Color.WHITE);
+        toolsMenu.setFont(new Font("SansSerif", Font.BOLD, 13));
+
         JMenuItem dbInspectorItem = new JMenuItem("Database Inspector");
+        dbInspectorItem.setFont(new Font("SansSerif", Font.PLAIN, 12));
         dbInspectorItem.addActionListener(e -> openDatabaseInspector());
         toolsMenu.add(dbInspectorItem);
+
         menuBar.add(toolsMenu);
         setJMenuBar(menuBar);
 
+        // Create main layout
+        JPanel mainContainer = new JPanel(new BorderLayout(20, 20));
+        mainContainer.setBackground(ACCENT_COLOR);
+        mainContainer.setBorder(new EmptyBorder(20, 20, 20, 20));
+
+        // Left side - Transaction area
+        JPanel leftPanel = new JPanel(new BorderLayout(15, 15));
+        leftPanel.setBackground(ACCENT_COLOR);
+        leftPanel.setPreferredSize(new Dimension(850, 0));
+
         scanPanel = new ScanPanel(this::processUPC);
         itemsPanel = new ItemsPanel();
-        totalPanel = new TotalPanel(this::voidTransaction);
+        totalPanel = new TotalPanel();
+
+        leftPanel.add(scanPanel, BorderLayout.NORTH);
+        leftPanel.add(itemsPanel, BorderLayout.CENTER);
+        leftPanel.add(totalPanel, BorderLayout.SOUTH);
+
+        // Right side - Controls
+        JPanel rightPanel = new JPanel();
+        rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.Y_AXIS));
+        rightPanel.setBackground(ACCENT_COLOR);
+        rightPanel.setPreferredSize(new Dimension(500, 0));
+
+        suspendPanel = new SuspendPanel(
+                this::suspendTransaction,
+                this::resumeTransaction
+        );
         actionPanel = new ActionPanel(
                 this::voidItem,
                 this::changeQuantity,
                 this::tenderExactDollar,
                 this::tenderNextDollar,
                 this::tenderCash,
-                this::tenderCredit
-        );
-        suspendPanel = new SuspendPanel(
-                this::suspendTransaction,
-                this::resumeTransaction
+                this::tenderCredit,
+                this::voidTransaction
         );
         quickKeysPanel = new QuickKeysPanel(this::processQuickKey);
 
-        JPanel rightPanel = new JPanel(new GridLayout(3, 1, 0, 10));
+        // Add spacing between panels
+        suspendPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
+        actionPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 320));
+        quickKeysPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 300));
+
         rightPanel.add(suspendPanel);
+        rightPanel.add(Box.createRigidArea(new Dimension(0, 15)));
         rightPanel.add(actionPanel);
+        rightPanel.add(Box.createRigidArea(new Dimension(0, 15)));
         rightPanel.add(quickKeysPanel);
+        rightPanel.add(Box.createVerticalGlue());
 
-        add(scanPanel, BorderLayout.NORTH);
-        add(itemsPanel, BorderLayout.CENTER);
-        add(totalPanel, BorderLayout.SOUTH);
-        add(rightPanel, BorderLayout.EAST);
+        mainContainer.add(leftPanel, BorderLayout.CENTER);
+        mainContainer.add(rightPanel, BorderLayout.EAST);
 
+        add(mainContainer);
         setVisible(true);
     }
 

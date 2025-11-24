@@ -3,18 +3,26 @@ package org.example.ui.components;
 import org.example.model.Product;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.util.function.Consumer;
 
 public class QuickKeysPanel extends JPanel {
+    private static final Color CARD_BG = Color.WHITE;
+    private static final Color QUICK_KEY_COLOR = new Color(0, 150, 136); // Teal
 
     public QuickKeysPanel(Consumer<Product> onQuickKey) {
-        setLayout(new GridLayout(3, 3, 8, 8));
-        setBackground(Color.WHITE);
+        setLayout(new GridLayout(3, 3, 12, 12));
+        setBackground(CARD_BG);
         setBorder(BorderFactory.createCompoundBorder(
-                new TitledBorder("Quick Keys"),
-                new EmptyBorder(10, 10, 10, 10)
+                BorderFactory.createTitledBorder(
+                        BorderFactory.createLineBorder(new Color(224, 224, 224), 1),
+                        "Quick Keys",
+                        javax.swing.border.TitledBorder.LEFT,
+                        javax.swing.border.TitledBorder.TOP,
+                        new Font("SansSerif", Font.BOLD, 14),
+                        new Color(60, 60, 60)
+                ),
+                new EmptyBorder(15, 15, 15, 15)
         ));
 
         // Popular items based on pricebook
@@ -30,14 +38,36 @@ public class QuickKeysPanel extends JPanel {
     }
 
     private void addQuickKey(String name, double price, String upc, Consumer<Product> action) {
-        JButton button = new JButton("<html><center>" + name + "<br>$" +
-                String.format("%.2f", price) + "</center></html>");
-        button.setFont(new Font("SansSerif", Font.PLAIN, 11));
-        button.setFocusable(false);
+        JButton button = new JButton(String.format(
+                "<html><div style='text-align: center;'><b>%s</b><br>$%.2f</div></html>",
+                name,
+                price
+        ));
+
+        button.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        button.setForeground(Color.WHITE);
+        button.setBackground(QUICK_KEY_COLOR);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setOpaque(true);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setPreferredSize(new Dimension(0, 75));
+
+        // Hover effect
+        button.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                button.setBackground(QUICK_KEY_COLOR.darker());
+            }
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                button.setBackground(QUICK_KEY_COLOR);
+            }
+        });
+
         button.addActionListener(e -> {
             Product product = new Product(upc, name, price);
             action.accept(product);
         });
+
         add(button);
     }
 }
