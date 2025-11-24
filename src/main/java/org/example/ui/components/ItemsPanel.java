@@ -5,16 +5,20 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.text.DecimalFormat;
 import java.util.List;
 
 public class ItemsPanel extends JPanel {
     private final JTable table;
     private final DefaultTableModel tableModel;
+    private final DecimalFormat moneyFormat;
 
     public ItemsPanel() {
         setLayout(new BorderLayout());
         setBackground(Color.WHITE);
         setBorder(new EmptyBorder(15, 15, 15, 15));
+
+        this.moneyFormat = new DecimalFormat("#,##0.00");
 
         String[] columns = {"Qty", "UPC", "Description", "Price", "Total"};
         tableModel = new DefaultTableModel(columns, 0) {
@@ -44,8 +48,8 @@ public class ItemsPanel extends JPanel {
                     item.getQuantity(),
                     item.getProduct().getUpc(),
                     item.getProduct().getDescription(),
-                    String.format("$%.2f", item.getProduct().getPrice()),
-                    String.format("$%.2f", item.getLineTotal())
+                    String.format("$%s", moneyFormat.format(item.getProduct().getPrice())),
+                    String.format("$%s", moneyFormat.format(item.getLineTotal()))
             });
         }
 

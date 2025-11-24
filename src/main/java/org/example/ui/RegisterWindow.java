@@ -205,13 +205,83 @@ public class RegisterWindow extends JFrame {
             return;
         }
 
-        String input = JOptionPane.showInputDialog(this,
-                "Enter new quantity for " + item.getProduct().getDescription() + ":",
-                item.getQuantity());
+        // Create custom text field with digit limit
+        JTextField qtyField = new JTextField(10);
+        qtyField.setFont(new Font("Monospaced", Font.PLAIN, 16));
+        qtyField.setText(String.valueOf(item.getQuantity()));
+        qtyField.selectAll();
 
-        if (input != null) {
+        // Add document filter to limit digits and prevent letters
+        ((javax.swing.text.AbstractDocument) qtyField.getDocument()).setDocumentFilter(
+                new javax.swing.text.DocumentFilter() {
+                    @Override
+                    public void insertString(FilterBypass fb, int offset, String string,
+                                             javax.swing.text.AttributeSet attr)
+                            throws javax.swing.text.BadLocationException {
+                        if (string == null) return;
+
+                        // Only allow digits
+                        String newStr = string.replaceAll("[^0-9]", "");
+                        if (newStr.isEmpty() || wouldExceedLimit(fb.getDocument(), offset, newStr, 0)) {
+                            Toolkit.getDefaultToolkit().beep();
+                            return;
+                        }
+                        super.insertString(fb, offset, newStr, attr);
+                    }
+
+                    @Override
+                    public void replace(FilterBypass fb, int offset, int length, String text,
+                                        javax.swing.text.AttributeSet attrs)
+                            throws javax.swing.text.BadLocationException {
+                        if (text == null) return;
+
+                        // Only allow digits
+                        String newStr = text.replaceAll("[^0-9]", "");
+                        if (newStr.isEmpty() && text.length() > 0) {
+                            Toolkit.getDefaultToolkit().beep();
+                            return;
+                        }
+                        if (wouldExceedLimit(fb.getDocument(), offset, newStr, length)) {
+                            Toolkit.getDefaultToolkit().beep();
+                            return;
+                        }
+                        super.replace(fb, offset, length, newStr, attrs);
+                    }
+
+                    private boolean wouldExceedLimit(javax.swing.text.Document doc, int offset,
+                                                     String newText, int replaceLength) {
+                        try {
+                            String current = doc.getText(0, doc.getLength());
+                            String before = current.substring(0, offset);
+                            String after = current.substring(offset + replaceLength);
+                            String result = before + newText + after;
+
+                            return result.length() > 7;
+                        } catch (javax.swing.text.BadLocationException e) {
+                            return false;
+                        }
+                    }
+                });
+
+        Object[] message = {
+                "Item: " + item.getProduct().getDescription(),
+                "Enter new quantity (max 7 digits):",
+                qtyField
+        };
+
+        int option = JOptionPane.showConfirmDialog(this, message, "Change Quantity",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (option == JOptionPane.OK_OPTION) {
+            String input = qtyField.getText().trim();
+
+            if (input.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Quantity cannot be empty");
+                return;
+            }
+
             try {
-                int newQty = Integer.parseInt(input.trim());
+                int newQty = Integer.parseInt(input);
                 if (newQty > 0) {
                     int oldQty = item.getQuantity();
                     transaction.changeQuantity(selectedRow, newQty);
@@ -250,12 +320,76 @@ public class RegisterWindow extends JFrame {
             return;
         }
 
-        String input = JOptionPane.showInputDialog(this,
-                String.format("Total: $%.2f\nEnter cash tendered:", transaction.getTotal()));
+        // Create custom text field with digit limit
+        JTextField cashField = new JTextField(10);
+        cashField.setFont(new Font("Monospaced", Font.PLAIN, 16));
 
-        if (input != null) {
+        // Add document filter to limit digits
+        ((javax.swing.text.AbstractDocument) cashField.getDocument()).setDocumentFilter(
+                new javax.swing.text.DocumentFilter() {
+                    @Override
+                    public void insertString(FilterBypass fb, int offset, String string,
+                                             javax.swing.text.AttributeSet attr)
+                            throws javax.swing.text.BadLocationException {
+                        if (string == null) return;
+
+                        String newStr = string.replaceAll("[^0-9.]", "");
+                        if (wouldExceedLimit(fb.getDocument(), offset, newStr, 0)) {
+                            Toolkit.getDefaultToolkit().beep();
+                            return;
+                        }
+                        super.insertString(fb, offset, newStr, attr);
+                    }
+
+                    @Override
+                    public void replace(FilterBypass fb, int offset, int length, String text,
+                                        javax.swing.text.AttributeSet attrs)
+                            throws javax.swing.text.BadLocationException {
+                        if (text == null) return;
+
+                        String newStr = text.replaceAll("[^0-9.]", "");
+                        if (wouldExceedLimit(fb.getDocument(), offset, newStr, length)) {
+                            Toolkit.getDefaultToolkit().beep();
+                            return;
+                        }
+                        super.replace(fb, offset, length, newStr, attrs);
+                    }
+
+                    private boolean wouldExceedLimit(javax.swing.text.Document doc, int offset,
+                                                     String newText, int replaceLength) {
+                        try {
+                            String current = doc.getText(0, doc.getLength());
+                            String before = current.substring(0, offset);
+                            String after = current.substring(offset + replaceLength);
+                            String result = before + newText + after;
+
+                            // Count digits (excluding decimal point)
+                            String digitsOnly = result.replace(".", "");
+                            return digitsOnly.length() > 7;
+                        } catch (javax.swing.text.BadLocationException e) {
+                            return false;
+                        }
+                    }
+                });
+
+        Object[] message = {
+                String.format("Total: $%.2f", transaction.getTotal()),
+                "Enter cash tendered (max 7 digits):",
+                cashField
+        };
+
+        int option = JOptionPane.showConfirmDialog(this, message, "Cash Payment",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (option == JOptionPane.OK_OPTION) {
+            String input = cashField.getText().trim();
+
+            if (input.isEmpty()) {
+                return;
+            }
+
             try {
-                double tendered = Double.parseDouble(input.trim());
+                double tendered = Double.parseDouble(input);
                 double total = transaction.getTotal();
 
                 if (tendered >= total) {

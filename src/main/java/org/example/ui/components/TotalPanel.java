@@ -3,6 +3,7 @@ package org.example.ui.components;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.text.DecimalFormat;
 
 public class TotalPanel extends JPanel {
     private final JLabel subtotalLabel;
@@ -45,8 +46,9 @@ public class TotalPanel extends JPanel {
     }
 
     public void updateTotals(double subtotal, double tax, double total) {
-        subtotalLabel.setText(String.format("SUBTOTAL: $%.2f", subtotal));
-        taxLabel.setText(String.format("TAX (7%%): $%.2f", tax));
-        totalLabel.setText(String.format("TOTAL: $%.2f", total));
+        DecimalFormat formatter = new DecimalFormat("#,##0.00");
+        subtotalLabel.setText(String.format("SUBTOTAL: $%s", formatter.format(subtotal)));
+        taxLabel.setText(String.format("TAX (7%%): $%s", formatter.format(tax)));
+        totalLabel.setText(String.format("TOTAL: $%s", formatter.format(total)));
     }
 }
