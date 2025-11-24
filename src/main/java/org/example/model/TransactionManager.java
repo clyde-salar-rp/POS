@@ -1,5 +1,7 @@
 package org.example.model;
 
+import lombok.Getter;
+
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -67,12 +69,10 @@ public class TransactionManager {
         return !suspendedTransactions.isEmpty();
     }
 
-    public void clearSuspendedTransaction(int transactionId) {
-        suspendedTransactions.remove(transactionId);
-    }
-
     public static class SuspendedTransaction {
+        @Getter
         private final int id;
+        @Getter
         private final List<Product> items;
         private final LocalDateTime suspendTime;
 
@@ -82,27 +82,11 @@ public class TransactionManager {
             this.suspendTime = suspendTime;
         }
 
-        public int getId() {
-            return id;
-        }
-
-        public List<Product> getItems() {
-            return items;
-        }
-
-        public LocalDateTime getSuspendTime() {
-            return suspendTime;
-        }
-
         public double getTotal() {
             double subtotal = items.stream()
                     .mapToDouble(Product::getLineTotal)
                     .sum();
             return subtotal * 1.07;
-        }
-
-        public int getItemCount() {
-            return items.size();
         }
 
         @Override
