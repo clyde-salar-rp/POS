@@ -6,7 +6,9 @@ import org.example.input.ScanGunListener;
 import org.example.model.Product;
 import org.example.model.Transaction;
 import org.example.model.TransactionItem;
+import org.example.model.TransactionManager;
 import org.example.ui.components.*;
+import org.example.ui.dialogs.SuspendedTransactionsDialog;
 
 import javax.swing.*;
 import java.awt.*;
@@ -15,18 +17,21 @@ import java.io.File;
 public class RegisterWindow extends JFrame {
     private final ProductDatabase database;
     private final VirtualJournal journal;
-    private final Transaction transaction;
+    private final TransactionManager transactionManager;
+    private Transaction transaction;
 
     private ScanPanel scanPanel;
     private ItemsPanel itemsPanel;
     private TotalPanel totalPanel;
     private ActionPanel actionPanel;
+    private SuspendPanel suspendPanel;
     private QuickKeysPanel quickKeysPanel;
     private ScanGunListener scanGunListener;
 
     public RegisterWindow() {
         this.database = new ProductDatabase();
         this.journal = new VirtualJournal();
+        this.transactionManager = new TransactionManager();
         this.transaction = new Transaction();
 
         loadPricebook();
@@ -90,9 +95,14 @@ public class RegisterWindow extends JFrame {
                 this::tenderCash,
                 this::tenderCredit
         );
+        suspendPanel = new SuspendPanel(
+                this::suspendTransaction,
+                this::resumeTransaction
+        );
         quickKeysPanel = new QuickKeysPanel(this::processQuickKey);
 
-        JPanel rightPanel = new JPanel(new GridLayout(2, 1, 0, 10));
+        JPanel rightPanel = new JPanel(new GridLayout(3, 1, 0, 10));
+        rightPanel.add(suspendPanel);
         rightPanel.add(actionPanel);
         rightPanel.add(quickKeysPanel);
 
@@ -303,6 +313,70 @@ public class RegisterWindow extends JFrame {
         transaction.clear();
         updateDisplay();
         scanGunListener.reset();
+    }
+
+    private void suspendTransaction() {
+        if (transaction.getItemCount() == 0) {
+            JOptionPane.showMessageDialog(this,
+                    "No items to suspend",
+                    "Empty Transaction",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int transactionId = transactionManager.suspendTransaction(transaction);
+
+        if (transactionId > 0) {
+            journal.logTransaction("SUSPENDED (ID: " + transactionId + ")", transaction.getTotal());
+
+            JOptionPane.showMessageDialog(this,
+                    String.format("Transaction #%d suspended\n\nItems: %d\nTotal: $%.2f",
+                            transactionId,
+                            transaction.getItemCount(),
+                            transaction.getTotal()),
+                    "Transaction Suspended",
+                    JOptionPane.INFORMATION_MESSAGE);
+
+            transaction.clear();
+            updateDisplay();
+            scanGunListener.reset();
+        }
+    }
+
+    private void resumeTransaction() {
+        if (transaction.getItemCount() > 0) {
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "Current transaction will be lost. Continue?",
+                    "Confirm",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+
+            if (confirm != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
+
+        TransactionManager.SuspendedTransaction suspended =
+                SuspendedTransactionsDialog.showDialog(this, transactionManager);
+
+        if (suspended != null) {
+            Transaction resumedTransaction = transactionManager.resumeTransaction(suspended.getId());
+
+            if (resumedTransaction != null) {
+                transaction = resumedTransaction;
+                updateDisplay();
+
+                journal.logTransaction("RESUMED (ID: " + suspended.getId() + ")", transaction.getTotal());
+
+                JOptionPane.showMessageDialog(this,
+                        String.format("Transaction #%d resumed\n\nItems: %d\nTotal: $%.2f",
+                                suspended.getId(),
+                                transaction.getItemCount(),
+                                transaction.getTotal()),
+                        "Transaction Resumed",
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
+        }
     }
 
     private void updateDisplay() {
