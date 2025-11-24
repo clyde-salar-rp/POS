@@ -6,9 +6,11 @@ import java.util.List;
 public class Transaction {
     private final List<TransactionItem> items;
     private static final double TAX_RATE = 0.07;
+    private Integer suspendedId; // Track if this transaction was previously suspended
 
     public Transaction() {
         this.items = new ArrayList<>();
+        this.suspendedId = null;
     }
 
     public void addItem(Product product) {
@@ -39,6 +41,7 @@ public class Transaction {
 
     public void clear() {
         items.clear();
+        suspendedId = null; // Clear the suspended ID when transaction is cleared
     }
 
     public List<TransactionItem> getItems() {
@@ -72,5 +75,14 @@ public class Transaction {
 
     public TransactionItem getLastItem() {
         return items.isEmpty() ? null : items.get(items.size() - 1);
+    }
+
+    // Methods for tracking suspended transaction ID
+    public Integer getSuspendedId() {
+        return suspendedId;
+    }
+
+    public void setSuspendedId(Integer suspendedId) {
+        this.suspendedId = suspendedId;
     }
 }

@@ -23,7 +23,18 @@ public class TransactionManager {
             return -1;
         }
 
-        int transactionId = nextTransactionId++;
+        // Check if this transaction already has an ID (was previously suspended)
+        Integer existingId = transaction.getSuspendedId();
+        int transactionId;
+
+        if (existingId != null) {
+            // Reuse the same ID
+            transactionId = existingId;
+        } else {
+            // Assign a new ID
+            transactionId = nextTransactionId++;
+        }
+
         SuspendedTransaction suspended = new SuspendedTransaction(
                 transactionId,
                 transaction.getItems(),
@@ -42,6 +53,8 @@ public class TransactionManager {
         }
 
         Transaction transaction = new Transaction();
+        transaction.setSuspendedId(transactionId); // Mark this transaction with its ID
+
         for (TransactionItem item : suspended.getItems()) {
             transaction.addItem(item.getProduct(), item.getQuantity());
         }
