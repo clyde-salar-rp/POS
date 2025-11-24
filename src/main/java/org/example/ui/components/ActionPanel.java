@@ -57,7 +57,7 @@ public class ActionPanel extends JPanel {
 
         // Row 3 - Clear button spanning 2 columns
         gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 2;
-        add(createButton("CLEAR TRANSACTION", DANGER_COLOR, onClear), gbc);
+        add(createButton("VOID TRANSACTION", DANGER_COLOR, onClear), gbc);
     }
 
     private JButton createButton(String text, Color bgColor, Runnable action) {
