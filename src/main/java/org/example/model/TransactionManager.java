@@ -23,15 +23,12 @@ public class TransactionManager {
             return -1;
         }
 
-        // Check if this transaction already has an ID (was previously suspended)
         Integer existingId = transaction.getSuspendedId();
         int transactionId;
 
         if (existingId != null) {
-            // Reuse the same ID
             transactionId = existingId;
         } else {
-            // Assign a new ID
             transactionId = nextTransactionId++;
         }
 
@@ -53,10 +50,10 @@ public class TransactionManager {
         }
 
         Transaction transaction = new Transaction();
-        transaction.setSuspendedId(transactionId); // Mark this transaction with its ID
+        transaction.setSuspendedId(transactionId);
 
-        for (TransactionItem item : suspended.getItems()) {
-            transaction.addItem(item.getProduct(), item.getQuantity());
+        for (Product product : suspended.getItems()) {
+            transaction.addItem(product, product.getQuantity());
         }
 
         return transaction;
@@ -76,10 +73,10 @@ public class TransactionManager {
 
     public static class SuspendedTransaction {
         private final int id;
-        private final List<TransactionItem> items;
+        private final List<Product> items;
         private final LocalDateTime suspendTime;
 
-        public SuspendedTransaction(int id, List<TransactionItem> items, LocalDateTime suspendTime) {
+        public SuspendedTransaction(int id, List<Product> items, LocalDateTime suspendTime) {
             this.id = id;
             this.items = new ArrayList<>(items);
             this.suspendTime = suspendTime;
@@ -89,7 +86,7 @@ public class TransactionManager {
             return id;
         }
 
-        public List<TransactionItem> getItems() {
+        public List<Product> getItems() {
             return items;
         }
 
@@ -99,9 +96,9 @@ public class TransactionManager {
 
         public double getTotal() {
             double subtotal = items.stream()
-                    .mapToDouble(item -> item.getProduct().getPrice() * item.getQuantity())
+                    .mapToDouble(Product::getLineTotal)
                     .sum();
-            return subtotal * 1.07; // Include tax
+            return subtotal * 1.07;
         }
 
         public int getItemCount() {

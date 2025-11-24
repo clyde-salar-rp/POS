@@ -1,7 +1,6 @@
 package org.example;
 
 import org.example.model.Product;
-import org.example.model.TransactionItem;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -27,18 +26,18 @@ public class VirtualJournal {
                 timestamp, description, price);
     }
 
-    public void logVoidItem(TransactionItem item) {
+    public void logVoidItem(Product product) {
         String timestamp = LocalDateTime.now().format(TIME_FORMAT);
         System.out.printf("[%s] VOID_ITEM | UPC: %s | Qty: %d | Desc: %s | Price: $%.2f%n",
-                timestamp, item.getProduct().getUpc(), item.getQuantity(),
-                item.getProduct().getDescription(), item.getLineTotal());
+                timestamp, product.getUpc(), product.getQuantity(),
+                product.getDescription(), product.getLineTotal());
     }
 
-    public void logQuantityChange(TransactionItem item, int oldQty, int newQty) {
+    public void logQuantityChange(Product product, int oldQty, int newQty) {
         String timestamp = LocalDateTime.now().format(TIME_FORMAT);
         System.out.printf("[%s] QTY_CHANGE | UPC: %s | Desc: %s | Old Qty: %d | New Qty: %d%n",
-                timestamp, item.getProduct().getUpc(),
-                item.getProduct().getDescription(), oldQty, newQty);
+                timestamp, product.getUpc(),
+                product.getDescription(), oldQty, newQty);
     }
 
     public void logTender(String paymentType, double subtotal, double tax, double total, double tendered, double change) {

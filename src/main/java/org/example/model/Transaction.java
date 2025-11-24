@@ -4,9 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Transaction {
-    private final List<TransactionItem> items;
+    private final List<Product> items;
     private static final double TAX_RATE = 0.07;
-    private Integer suspendedId; // Track if this transaction was previously suspended
+    private Integer suspendedId;
 
     public Transaction() {
         this.items = new ArrayList<>();
@@ -14,11 +14,23 @@ public class Transaction {
     }
 
     public void addItem(Product product) {
-        items.add(new TransactionItem(product, 1));
+        addItem(product, 1);
     }
 
     public void addItem(Product product, int quantity) {
-        items.add(new TransactionItem(product, quantity));
+        // Check if product already exists in transaction
+        for (Product existingProduct : items) {
+            if (existingProduct.getUpc().equals(product.getUpc())) {
+                // Product exists, increment quantity
+                existingProduct.setQuantity(existingProduct.getQuantity() + quantity);
+                return;
+            }
+        }
+
+        // Product doesn't exist, add new copy
+        Product newProduct = new Product(product);
+        newProduct.setQuantity(quantity);
+        items.add(newProduct);
     }
 
     public void voidItem(int index) {
@@ -41,14 +53,14 @@ public class Transaction {
 
     public void clear() {
         items.clear();
-        suspendedId = null; // Clear the suspended ID when transaction is cleared
+        suspendedId = null;
     }
 
-    public List<TransactionItem> getItems() {
+    public List<Product> getItems() {
         return new ArrayList<>(items);
     }
 
-    public TransactionItem getItem(int index) {
+    public Product getItem(int index) {
         if (index >= 0 && index < items.size()) {
             return items.get(index);
         }
@@ -57,7 +69,7 @@ public class Transaction {
 
     public double getSubtotal() {
         return items.stream()
-                .mapToDouble(item -> item.getProduct().getPrice() * item.getQuantity())
+                .mapToDouble(Product::getLineTotal)
                 .sum();
     }
 
@@ -73,11 +85,10 @@ public class Transaction {
         return items.size();
     }
 
-    public TransactionItem getLastItem() {
+    public Product getLastItem() {
         return items.isEmpty() ? null : items.get(items.size() - 1);
     }
 
-    // Methods for tracking suspended transaction ID
     public Integer getSuspendedId() {
         return suspendedId;
     }

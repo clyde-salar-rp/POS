@@ -1,6 +1,6 @@
 package org.example.ui.components;
 
-import org.example.model.TransactionItem;
+import org.example.model.Product;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
@@ -41,15 +41,15 @@ public class ItemsPanel extends JPanel {
         add(scrollPane, BorderLayout.CENTER);
     }
 
-    public void updateItems(List<TransactionItem> items) {
+    public void updateItems(List<Product> items) {
         tableModel.setRowCount(0);
-        for (TransactionItem item : items) {
+        for (Product product : items) {
             tableModel.addRow(new Object[]{
-                    item.getQuantity(),
-                    item.getProduct().getUpc(),
-                    item.getProduct().getDescription(),
-                    String.format("$%s", moneyFormat.format(item.getProduct().getPrice())),
-                    String.format("$%s", moneyFormat.format(item.getLineTotal()))
+                    product.getQuantity(),
+                    product.getUpc(),
+                    product.getDescription(),
+                    String.format("$%s", moneyFormat.format(product.getPrice())),
+                    String.format("$%s", moneyFormat.format(product.getLineTotal()))
             });
         }
 

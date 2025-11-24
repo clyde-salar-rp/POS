@@ -5,7 +5,6 @@ import org.example.VirtualJournal;
 import org.example.input.ScanGunListener;
 import org.example.model.Product;
 import org.example.model.Transaction;
-import org.example.model.TransactionItem;
 import org.example.model.TransactionManager;
 import org.example.ui.components.*;
 import org.example.ui.dialogs.SuspendedTransactionsDialog;
@@ -75,7 +74,6 @@ public class RegisterWindow extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
-        // Add menu bar
         JMenuBar menuBar = new JMenuBar();
         JMenu toolsMenu = new JMenu("Tools");
         JMenuItem dbInspectorItem = new JMenuItem("Database Inspector");
@@ -165,23 +163,23 @@ public class RegisterWindow extends JFrame {
             return;
         }
 
-        TransactionItem item = transaction.getItem(selectedRow);
-        if (item == null) {
+        Product product = transaction.getItem(selectedRow);
+        if (product == null) {
             JOptionPane.showMessageDialog(this, "Invalid item selection");
             return;
         }
 
         int confirm = JOptionPane.showConfirmDialog(this,
                 String.format("Void this item?\n\n%s\nQty: %d\nPrice: $%.2f",
-                        item.getProduct().getDescription(),
-                        item.getQuantity(),
-                        item.getLineTotal()),
+                        product.getDescription(),
+                        product.getQuantity(),
+                        product.getLineTotal()),
                 "Confirm Void",
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.QUESTION_MESSAGE);
 
         if (confirm == JOptionPane.YES_OPTION) {
-            journal.logVoidItem(item);
+            journal.logVoidItem(product);
             transaction.voidItem(selectedRow);
             updateDisplay();
         }
@@ -199,19 +197,17 @@ public class RegisterWindow extends JFrame {
             return;
         }
 
-        TransactionItem item = transaction.getItem(selectedRow);
-        if (item == null) {
+        Product product = transaction.getItem(selectedRow);
+        if (product == null) {
             JOptionPane.showMessageDialog(this, "Invalid item selection");
             return;
         }
 
-        // Create custom text field with digit limit
         JTextField qtyField = new JTextField(10);
         qtyField.setFont(new Font("Monospaced", Font.PLAIN, 16));
-        qtyField.setText(String.valueOf(item.getQuantity()));
+        qtyField.setText(String.valueOf(product.getQuantity()));
         qtyField.selectAll();
 
-        // Add document filter to limit digits and prevent letters
         ((javax.swing.text.AbstractDocument) qtyField.getDocument()).setDocumentFilter(
                 new javax.swing.text.DocumentFilter() {
                     @Override
@@ -220,7 +216,6 @@ public class RegisterWindow extends JFrame {
                             throws javax.swing.text.BadLocationException {
                         if (string == null) return;
 
-                        // Only allow digits
                         String newStr = string.replaceAll("[^0-9]", "");
                         if (newStr.isEmpty() || wouldExceedLimit(fb.getDocument(), offset, newStr, 0)) {
                             Toolkit.getDefaultToolkit().beep();
@@ -235,7 +230,6 @@ public class RegisterWindow extends JFrame {
                             throws javax.swing.text.BadLocationException {
                         if (text == null) return;
 
-                        // Only allow digits
                         String newStr = text.replaceAll("[^0-9]", "");
                         if (newStr.isEmpty() && text.length() > 0) {
                             Toolkit.getDefaultToolkit().beep();
@@ -255,7 +249,6 @@ public class RegisterWindow extends JFrame {
                             String before = current.substring(0, offset);
                             String after = current.substring(offset + replaceLength);
                             String result = before + newText + after;
-
                             return result.length() > 7;
                         } catch (javax.swing.text.BadLocationException e) {
                             return false;
@@ -264,7 +257,7 @@ public class RegisterWindow extends JFrame {
                 });
 
         Object[] message = {
-                "Item: " + item.getProduct().getDescription(),
+                "Item: " + product.getDescription(),
                 "Enter new quantity (max 7 digits):",
                 qtyField
         };
@@ -283,9 +276,9 @@ public class RegisterWindow extends JFrame {
             try {
                 int newQty = Integer.parseInt(input);
                 if (newQty > 0) {
-                    int oldQty = item.getQuantity();
+                    int oldQty = product.getQuantity();
                     transaction.changeQuantity(selectedRow, newQty);
-                    journal.logQuantityChange(item, oldQty, newQty);
+                    journal.logQuantityChange(product, oldQty, newQty);
                     updateDisplay();
                 } else {
                     JOptionPane.showMessageDialog(this, "Quantity must be positive");
@@ -320,11 +313,9 @@ public class RegisterWindow extends JFrame {
             return;
         }
 
-        // Create custom text field with digit limit
         JTextField cashField = new JTextField(10);
         cashField.setFont(new Font("Monospaced", Font.PLAIN, 16));
 
-        // Add document filter to limit digits
         ((javax.swing.text.AbstractDocument) cashField.getDocument()).setDocumentFilter(
                 new javax.swing.text.DocumentFilter() {
                     @Override
@@ -362,8 +353,6 @@ public class RegisterWindow extends JFrame {
                             String before = current.substring(0, offset);
                             String after = current.substring(offset + replaceLength);
                             String result = before + newText + after;
-
-                            // Count digits (excluding decimal point)
                             String digitsOnly = result.replace(".", "");
                             return digitsOnly.length() > 7;
                         } catch (javax.swing.text.BadLocationException e) {
