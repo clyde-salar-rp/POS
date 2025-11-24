@@ -1,11 +1,16 @@
 package org.example.model;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class Transaction {
     private final List<Product> items;
     private static final double TAX_RATE = 0.07;
+    @Getter
+    @Setter
     private Integer suspendedId;
 
     public Transaction() {
@@ -36,12 +41,6 @@ public class Transaction {
     public void voidItem(int index) {
         if (index >= 0 && index < items.size()) {
             items.remove(index);
-        }
-    }
-
-    public void voidLastItem() {
-        if (!items.isEmpty()) {
-            items.remove(items.size() - 1);
         }
     }
 
@@ -83,17 +82,5 @@ public class Transaction {
 
     public int getItemCount() {
         return items.size();
-    }
-
-    public Product getLastItem() {
-        return items.isEmpty() ? null : items.get(items.size() - 1);
-    }
-
-    public Integer getSuspendedId() {
-        return suspendedId;
-    }
-
-    public void setSuspendedId(Integer suspendedId) {
-        this.suspendedId = suspendedId;
     }
 }
