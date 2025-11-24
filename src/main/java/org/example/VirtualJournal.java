@@ -1,12 +1,18 @@
 package org.example;
 
 import org.example.model.Product;
+import org.example.model.Transaction;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 public class VirtualJournal {
     private static final DateTimeFormatter TIME_FORMAT =
             DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
+    private final ReceiptPrinter receiptPrinter;
+
+    public VirtualJournal() {
+        this.receiptPrinter = new ReceiptPrinter();
+    }
 
     public void logScan(String source, String upc, Product product) {
         String timestamp = LocalDateTime.now().format(TIME_FORMAT);
@@ -55,5 +61,23 @@ public class VirtualJournal {
     public void logSystem(String message) {
         String timestamp = LocalDateTime.now().format(TIME_FORMAT);
         System.out.printf("[%s] SYSTEM | %s%n", timestamp, message);
+    }
+
+    public String printReceipt(Transaction transaction, String paymentType,
+                               double tendered, double change) {
+        String timestamp = LocalDateTime.now().format(TIME_FORMAT);
+        System.out.printf("[%s] RECEIPT PRINTING%n", timestamp);
+        System.out.println("\n" + "=".repeat(50));
+        System.out.println("RECEIPT OUTPUT:");
+        System.out.println("=".repeat(50));
+
+        String receipt = receiptPrinter.generateReceipt(transaction, paymentType, tendered, change);
+        System.out.println(receipt);
+
+        System.out.println("=".repeat(50));
+        System.out.println("END OF RECEIPT");
+        System.out.println("=".repeat(50) + "\n");
+
+        return receipt;
     }
 }

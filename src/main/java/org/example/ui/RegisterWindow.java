@@ -452,15 +452,18 @@ public class RegisterWindow extends JFrame {
 
         journal.logTender(paymentType, subtotal, tax, total, tendered, change);
 
+        // Print receipt to virtual journal and get receipt text
+        String receiptText = journal.printReceipt(transaction, paymentType, tendered, change);
+
+        // Show change dialog if applicable
         if (change > 0) {
             JOptionPane.showMessageDialog(this,
                     String.format("Change due: $%.2f", change),
                     "Transaction Complete", JOptionPane.INFORMATION_MESSAGE);
-        } else {
-            JOptionPane.showMessageDialog(this,
-                    "Transaction Complete",
-                    "Success", JOptionPane.INFORMATION_MESSAGE);
         }
+
+        // Show receipt dialog
+        org.example.ui.dialogs.ReceiptDialog.showReceipt(this, receiptText);
 
         completeTransaction();
     }
