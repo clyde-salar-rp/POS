@@ -3,19 +3,20 @@ package org.example.ui.components;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.text.DecimalFormat;
 
 public class TenderPanel extends JPanel {
     private static final Color CARD_BG = Color.WHITE;
     private static final Color SUCCESS_COLOR = new Color(76, 175, 80);
     private static final Color INFO_COLOR = new Color(33, 150, 243);
-    private static final Color DANGER_COLOR = new Color(244, 67, 54);
+    private static final Color WARNING_COLOR = new Color(255, 152, 0);
 
-    private JLabel totalLabel;
-    private double currentTotal;
+    private final JLabel totalLabel;
+    private final DecimalFormat formatter;
 
     public TenderPanel(Runnable onExactDollar, Runnable onNextDollar,
                        Runnable onCash, Runnable onCredit, Runnable onCancel) {
-        setLayout(new BorderLayout(0, 20));
+        setLayout(new BorderLayout(0, 15));
         setBackground(CARD_BG);
         setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createTitledBorder(
@@ -26,47 +27,65 @@ public class TenderPanel extends JPanel {
                         new Font("SansSerif", Font.BOLD, 14),
                         new Color(60, 60, 60)
                 ),
+                new EmptyBorder(15, 15, 15, 15)
+        ));
+
+        formatter = new DecimalFormat("#,##0.00");
+
+        // Total display panel
+        JPanel totalPanel = new JPanel();
+        totalPanel.setBackground(new Color(245, 250, 255));
+        totalPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(200, 220, 240), 2),
                 new EmptyBorder(20, 20, 20, 20)
         ));
 
-        // Total display at top
-        JPanel totalPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        totalPanel.setBackground(CARD_BG);
+        totalLabel = new JLabel("TOTAL: $0.00");
+        totalLabel.setFont(new Font("SansSerif", Font.BOLD, 32));
+        totalLabel.setForeground(new Color(76, 175, 80));
+        totalPanel.add(totalLabel);
 
-        JLabel totalLabelPrefix = new JLabel("AMOUNT DUE:");
-        totalLabelPrefix.setFont(new Font("SansSerif", Font.BOLD, 16));
-        totalLabelPrefix.setForeground(new Color(70, 70, 70));
+        // Quick tender buttons
+        JPanel quickTenderPanel = new JPanel(new GridLayout(1, 2, 12, 0));
+        quickTenderPanel.setBackground(CARD_BG);
+        quickTenderPanel.add(createButton("EXACT DOLLAR", INFO_COLOR, onExactDollar));
+        quickTenderPanel.add(createButton("NEXT DOLLAR", INFO_COLOR, onNextDollar));
 
-        totalLabel = new JLabel("$0.00");
-        totalLabel.setFont(new Font("SansSerif", Font.BOLD, 36));
-        totalLabel.setForeground(SUCCESS_COLOR);
+        // Payment method buttons
+        JPanel paymentPanel = new JPanel(new GridLayout(1, 2, 12, 0));
+        paymentPanel.setBackground(CARD_BG);
+        paymentPanel.add(createButton("CASH", SUCCESS_COLOR, onCash));
+        paymentPanel.add(createButton("CREDIT", SUCCESS_COLOR, onCredit));
 
-        JPanel totalLabelPanel = new JPanel();
-        totalLabelPanel.setLayout(new BoxLayout(totalLabelPanel, BoxLayout.Y_AXIS));
-        totalLabelPanel.setBackground(CARD_BG);
-        totalLabelPanel.add(totalLabelPrefix);
-        totalLabelPanel.add(Box.createRigidArea(new Dimension(0, 5)));
-        totalLabelPanel.add(totalLabel);
+        // Cancel button
+        JPanel cancelPanel = new JPanel(new BorderLayout());
+        cancelPanel.setBackground(CARD_BG);
+        cancelPanel.add(createButton("CANCEL PAYMENT", WARNING_COLOR, onCancel));
 
-        totalPanel.add(totalLabelPanel);
+        // Main content panel
+        JPanel contentPanel = new JPanel();
+        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+        contentPanel.setBackground(CARD_BG);
 
-        // Payment buttons grid
-        JPanel buttonsPanel = new JPanel(new GridLayout(5, 1, 0, 12));
-        buttonsPanel.setBackground(CARD_BG);
+        // Set max sizes for consistent layout
+        totalPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
+        quickTenderPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+        paymentPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+        cancelPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
 
-        buttonsPanel.add(createButton("EXACT DOLLAR", INFO_COLOR, onExactDollar));
-        buttonsPanel.add(createButton("NEXT DOLLAR UP", INFO_COLOR, onNextDollar));
-        buttonsPanel.add(createButton("CASH (ENTER AMOUNT)", SUCCESS_COLOR, onCash));
-        buttonsPanel.add(createButton("CREDIT/DEBIT", SUCCESS_COLOR, onCredit));
-        buttonsPanel.add(createButton("CANCEL - RETURN TO TRANSACTION", DANGER_COLOR, onCancel));
+        contentPanel.add(totalPanel);
+        contentPanel.add(Box.createRigidArea(new Dimension(0, 20)));
+        contentPanel.add(quickTenderPanel);
+        contentPanel.add(Box.createRigidArea(new Dimension(0, 12)));
+        contentPanel.add(paymentPanel);
+        contentPanel.add(Box.createRigidArea(new Dimension(0, 20)));
+        contentPanel.add(cancelPanel);
 
-        add(totalPanel, BorderLayout.NORTH);
-        add(buttonsPanel, BorderLayout.CENTER);
+        add(contentPanel, BorderLayout.NORTH);
     }
 
     public void updateTotal(double total) {
-        this.currentTotal = total;
-        totalLabel.setText(String.format("$%.2f", total));
+        totalLabel.setText(String.format("TOTAL: $%s", formatter.format(total)));
     }
 
     private JButton createButton(String text, Color bgColor, Runnable action) {
@@ -80,6 +99,7 @@ public class TenderPanel extends JPanel {
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
         button.setPreferredSize(new Dimension(0, 60));
 
+        // Hover effect
         button.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseEntered(java.awt.event.MouseEvent evt) {
                 button.setBackground(bgColor.darker());

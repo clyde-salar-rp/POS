@@ -25,7 +25,7 @@ public class TransactionActionPanel extends JPanel {
         ));
 
         add(createButton("VOID ITEM", DANGER_COLOR, onVoidItem));
-        add(createButton("CHANGE QUANTITY", WARNING_COLOR, onQuantityChange));
+        add(createButton("CHANGE QTY", WARNING_COLOR, onQuantityChange));
         add(createButton("VOID TRANSACTION", DANGER_COLOR, onVoidTransaction));
     }
 
@@ -40,6 +40,7 @@ public class TransactionActionPanel extends JPanel {
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
         button.setPreferredSize(new Dimension(0, 50));
 
+        // Hover effect
         button.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseEntered(java.awt.event.MouseEvent evt) {
                 button.setBackground(bgColor.darker());

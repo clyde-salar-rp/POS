@@ -6,6 +6,7 @@ import org.example.input.ScanGunListener;
 import org.example.model.Product;
 import org.example.model.Transaction;
 import org.example.model.TransactionManager;
+import org.example.service.DiscountService;
 import org.example.ui.components.*;
 import org.example.ui.dialogs.SuspendedTransactionsDialog;
 
@@ -18,6 +19,7 @@ public class RegisterWindow extends JFrame {
     private final ProductDatabase database;
     private final VirtualJournal journal;
     private final TransactionManager transactionManager;
+    private final DiscountService discountService;
     private Transaction transaction;
 
     private enum RegisterMode {
@@ -35,6 +37,8 @@ public class RegisterWindow extends JFrame {
     // Tendering phase panels
     private JPanel tenderingView;
     private TenderPanel tenderPanel;
+    private ItemsPanel readOnlyItemsPanel;
+    private TotalPanel readOnlyTotalPanel;
 
     private ScanPanel scanPanel;
     private ItemsPanel itemsPanel;
@@ -42,6 +46,9 @@ public class RegisterWindow extends JFrame {
     private SuspendPanel suspendPanel;
     private QuickKeysPanel quickKeysPanel;
     private ScanGunListener scanGunListener;
+
+    // Store discount info
+    private DiscountService.DiscountResponse currentDiscount;
 
     private static final Color PRIMARY_COLOR = new Color(25, 118, 210);
     private static final Color ACCENT_COLOR = new Color(245, 245, 250);
@@ -52,6 +59,7 @@ public class RegisterWindow extends JFrame {
         this.database = new ProductDatabase();
         this.journal = new VirtualJournal();
         this.transactionManager = new TransactionManager();
+        this.discountService = new DiscountService();
         this.transaction = new Transaction();
 
         loadPricebook();
@@ -209,12 +217,12 @@ public class RegisterWindow extends JFrame {
         headerLabel.setForeground(Color.WHITE);
         headerPanel.add(headerLabel);
 
-        ItemsPanel readOnlyItems = new ItemsPanel();
-        TotalPanel readOnlyTotals = new TotalPanel();
+        readOnlyItemsPanel = new ItemsPanel();
+        readOnlyTotalPanel = new TotalPanel();
 
         leftPanel.add(headerPanel, BorderLayout.NORTH);
-        leftPanel.add(readOnlyItems, BorderLayout.CENTER);
-        leftPanel.add(readOnlyTotals, BorderLayout.SOUTH);
+        leftPanel.add(readOnlyItemsPanel, BorderLayout.CENTER);
+        leftPanel.add(readOnlyTotalPanel, BorderLayout.SOUTH);
 
         // Right side - Payment options
         JPanel rightPanel = new JPanel();
@@ -273,6 +281,11 @@ public class RegisterWindow extends JFrame {
 
         currentMode = RegisterMode.TENDERING;
 
+        // Calculate discounts before entering tendering mode
+        if (!calculateDiscount()) {
+            return;
+        }
+
         // Update the read-only panels in tendering view with current transaction
         updateTenderingView();
 
@@ -284,28 +297,40 @@ public class RegisterWindow extends JFrame {
 
     private void cancelTendering() {
         currentMode = RegisterMode.TRANSACTION;
+        currentDiscount = null;
+        updateDisplay(); // Reset to regular totals
         cardLayout.show(cardPanel, "TRANSACTION");
         journal.logSystem("Cancelled tendering - returned to TRANSACTION mode");
     }
 
     private void updateTenderingView() {
-        // Find the read-only panels in tenderingView and update them
-        Component[] components = ((JPanel)tenderingView.getComponent(0)).getComponents();
-        for (Component comp : components) {
-            if (comp instanceof ItemsPanel) {
-                ((ItemsPanel) comp).updateItems(transaction.getItems());
-            } else if (comp instanceof TotalPanel) {
-                ((TotalPanel) comp).updateTotals(
-                        transaction.getSubtotal(),
-                        transaction.getTax(),
-                        transaction.getTotal()
-                );
-            }
-        }
+        // Update read-only panels with discounted values
+        if (currentDiscount != null) {
+            readOnlyItemsPanel.updateItems(transaction.getItems());
+            readOnlyTotalPanel.updateTotals(
+                    currentDiscount.subtotal,
+                    currentDiscount.tax,
+                    currentDiscount.total,
+                    currentDiscount.totalDiscount
+            );
 
-        // Update tender panel with current total
-        if (tenderPanel != null) {
-            tenderPanel.updateTotal(transaction.getTotal());
+            // Update tender panel with discounted total
+            if (tenderPanel != null) {
+                tenderPanel.updateTotal(currentDiscount.total);
+            }
+        } else {
+            // Fallback to regular totals
+            readOnlyItemsPanel.updateItems(transaction.getItems());
+            readOnlyTotalPanel.updateTotals(
+                    transaction.getSubtotal(),
+                    transaction.getTax(),
+                    transaction.getTotal(),
+                    0.0
+            );
+
+            if (tenderPanel != null) {
+                tenderPanel.updateTotal(transaction.getTotal());
+            }
         }
     }
 
@@ -488,18 +513,20 @@ public class RegisterWindow extends JFrame {
 
     private void tenderExactDollar() {
         if (currentMode != RegisterMode.TENDERING) return;
-        completeTender("CASH", transaction.getTotal(), 0.0);
+        if (currentDiscount == null) return;
+        completeTender("CASH", currentDiscount.total, 0.0);
     }
 
     private void tenderNextDollar() {
         if (currentMode != RegisterMode.TENDERING) return;
-        double total = transaction.getTotal();
-        double nextDollar = Math.ceil(total);
-        completeTender("CASH", nextDollar, nextDollar - total);
+        if (currentDiscount == null) return;
+        double nextDollar = Math.ceil(currentDiscount.total);
+        completeTender("CASH", nextDollar, nextDollar - currentDiscount.total);
     }
 
     private void tenderCash() {
         if (currentMode != RegisterMode.TENDERING) return;
+        if (currentDiscount == null) return;
 
         JTextField cashField = new JTextField(10);
         cashField.setFont(new Font("Monospaced", Font.PLAIN, 16));
@@ -550,7 +577,7 @@ public class RegisterWindow extends JFrame {
                 });
 
         Object[] message = {
-                String.format("Total: $%.2f", transaction.getTotal()),
+                String.format("Total: $%.2f", currentDiscount.total),
                 "Enter cash tendered (max 7 digits):",
                 cashField
         };
@@ -567,10 +594,9 @@ public class RegisterWindow extends JFrame {
 
             try {
                 double tendered = Double.parseDouble(input);
-                double total = transaction.getTotal();
 
-                if (tendered >= total) {
-                    completeTender("CASH", tendered, tendered - total);
+                if (tendered >= currentDiscount.total) {
+                    completeTender("CASH", tendered, tendered - currentDiscount.total);
                 } else {
                     JOptionPane.showMessageDialog(this, "Insufficient payment");
                 }
@@ -582,15 +608,60 @@ public class RegisterWindow extends JFrame {
 
     private void tenderCredit() {
         if (currentMode != RegisterMode.TENDERING) return;
-        completeTender("CREDIT", transaction.getTotal(), 0.0);
+        if (currentDiscount == null) return;
+        completeTender("CREDIT", currentDiscount.total, 0.0);
+    }
+
+    private boolean calculateDiscount() {
+        try {
+            journal.logSystem("Calculating discounts...");
+            currentDiscount = discountService.calculateDiscount(transaction);
+
+            // Log discount details
+            if (currentDiscount.totalDiscount > 0) {
+                journal.logSystem(String.format("Discount applied: $%.2f", currentDiscount.totalDiscount));
+                for (DiscountService.DiscountResponse.AppliedDiscount discount : currentDiscount.appliedDiscounts) {
+                    journal.logSystem(String.format("  - %s: $%.2f (%s)",
+                            discount.ruleName, discount.amount, discount.description));
+                }
+            } else {
+                journal.logSystem("No discounts applied");
+            }
+
+            return true;
+
+        } catch (Exception e) {
+            journal.logSystem("Error calculating discount: " + e.getMessage());
+            JOptionPane.showMessageDialog(this,
+                    "Could not calculate discounts. Proceeding without discounts.\n\n" +
+                            "Error: " + e.getMessage(),
+                    "Discount Error",
+                    JOptionPane.WARNING_MESSAGE);
+
+            // Use regular totals as fallback
+            currentDiscount = new DiscountService.DiscountResponse();
+            currentDiscount.subtotal = transaction.getSubtotal();
+            currentDiscount.tax = transaction.getTax();
+            currentDiscount.total = transaction.getTotal();
+            currentDiscount.totalDiscount = 0.0;
+
+            return true;
+        }
     }
 
     private void completeTender(String paymentType, double tendered, double change) {
-        double subtotal = transaction.getSubtotal();
-        double tax = transaction.getTax();
-        double total = transaction.getTotal();
+        if (currentDiscount == null) return;
+
+        double subtotal = currentDiscount.subtotal;
+        double tax = currentDiscount.tax;
+        double total = currentDiscount.total;
+        double discount = currentDiscount.totalDiscount;
 
         journal.logTender(paymentType, subtotal, tax, total, tendered, change);
+
+        if (discount > 0) {
+            journal.logSystem(String.format("Total discount: $%.2f", discount));
+        }
 
         // Print receipt to virtual journal and get receipt text
         String receiptText = journal.printReceipt(transaction, paymentType, tendered, change);
@@ -616,6 +687,7 @@ public class RegisterWindow extends JFrame {
         if (transaction.getItemCount() > 0) {
             journal.logTransaction("VOIDED", transaction.getTotal());
         }
+        currentDiscount = null;
         transaction.clear();
         updateDisplay();
         scanGunListener.reset();
@@ -625,6 +697,7 @@ public class RegisterWindow extends JFrame {
         if(transaction.getItemCount() > 0) {
             journal.logTransaction("COMPLETED", transaction.getTotal());
         }
+        currentDiscount = null;
         transaction.clear();
         updateDisplay();
         scanGunListener.reset();
@@ -652,6 +725,7 @@ public class RegisterWindow extends JFrame {
                     "Transaction Suspended",
                     JOptionPane.INFORMATION_MESSAGE);
 
+            currentDiscount = null;
             transaction.clear();
             updateDisplay();
             scanGunListener.reset();
@@ -679,6 +753,7 @@ public class RegisterWindow extends JFrame {
 
             if (resumedTransaction != null) {
                 transaction = resumedTransaction;
+                currentDiscount = null;
                 updateDisplay();
 
                 journal.logTransaction("RESUMED (ID: " + suspended.getId() + ")", transaction.getTotal());
@@ -696,10 +771,22 @@ public class RegisterWindow extends JFrame {
 
     private void updateDisplay() {
         itemsPanel.updateItems(transaction.getItems());
-        totalPanel.updateTotals(
-                transaction.getSubtotal(),
-                transaction.getTax(),
-                transaction.getTotal()
-        );
+
+        // If no discount calculated yet, show regular totals
+        if (currentDiscount == null) {
+            totalPanel.updateTotals(
+                    transaction.getSubtotal(),
+                    transaction.getTax(),
+                    transaction.getTotal(),
+                    0.0
+            );
+        } else {
+            totalPanel.updateTotals(
+                    currentDiscount.subtotal,
+                    currentDiscount.tax,
+                    currentDiscount.total,
+                    currentDiscount.totalDiscount
+            );
+        }
     }
 }
