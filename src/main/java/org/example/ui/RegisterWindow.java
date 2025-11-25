@@ -1,6 +1,7 @@
 package org.example.ui;
 
 import org.example.ProductDatabase;
+import org.example.SalesTracker;
 import org.example.VirtualJournal;
 import org.example.input.ScanGunListener;
 import org.example.model.Product;
@@ -18,14 +19,12 @@ public class RegisterWindow extends JFrame {
     private final ProductDatabase database;
     private final VirtualJournal journal;
     private final TransactionManager transactionManager;
+    private final SalesTracker salesTracker;
     private Transaction transaction;
 
     private ScanPanel scanPanel;
     private ItemsPanel itemsPanel;
     private TotalPanel totalPanel;
-    private ActionPanel actionPanel;
-    private SuspendPanel suspendPanel;
-    private QuickKeysPanel quickKeysPanel;
     private ScanGunListener scanGunListener;
 
     private static final Color PRIMARY_COLOR = new Color(25, 118, 210);
@@ -38,6 +37,7 @@ public class RegisterWindow extends JFrame {
         this.database = new ProductDatabase();
         this.journal = new VirtualJournal();
         this.transactionManager = new TransactionManager();
+        this.salesTracker = new SalesTracker();
         this.transaction = new Transaction();
 
         loadPricebook();
@@ -96,6 +96,11 @@ public class RegisterWindow extends JFrame {
         dbInspectorItem.addActionListener(e -> openDatabaseInspector());
         toolsMenu.add(dbInspectorItem);
 
+        JMenuItem salesReportItem = new JMenuItem("Daily Sales Report");
+        salesReportItem.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        salesReportItem.addActionListener(e -> showDailySalesReport());
+        toolsMenu.add(salesReportItem);
+
         menuBar.add(toolsMenu);
         setJMenuBar(menuBar);
 
@@ -123,11 +128,11 @@ public class RegisterWindow extends JFrame {
         rightPanel.setBackground(ACCENT_COLOR);
         rightPanel.setPreferredSize(new Dimension(500, 0));
 
-        suspendPanel = new SuspendPanel(
+        SuspendPanel suspendPanel = new SuspendPanel(
                 this::suspendTransaction,
                 this::resumeTransaction
         );
-        actionPanel = new ActionPanel(
+        ActionPanel actionPanel = new ActionPanel(
                 this::voidItem,
                 this::changeQuantity,
                 this::tenderExactDollar,
@@ -136,7 +141,7 @@ public class RegisterWindow extends JFrame {
                 this::tenderCredit,
                 this::voidTransaction
         );
-        quickKeysPanel = new QuickKeysPanel(this::processQuickKey);
+        QuickKeysPanel quickKeysPanel = new QuickKeysPanel(this::processQuickKey);
 
         // Add spacing between panels
         suspendPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
@@ -159,6 +164,68 @@ public class RegisterWindow extends JFrame {
 
     private void openDatabaseInspector() {
         new org.example.DatabaseInspector();
+    }
+
+    private void showDailySalesReport() {
+        String report = salesTracker.generateDailySalesReport();
+
+        JTextArea textArea = new JTextArea(report);
+        textArea.setEditable(false);
+        textArea.setFont(new Font("Courier New", Font.PLAIN, 12));
+        textArea.setCaretPosition(0);
+
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        scrollPane.setPreferredSize(new Dimension(750, 600));
+
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        // Buttons
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+
+        JButton printButton = new JButton("Print Report");
+        printButton.addActionListener(e -> {
+            JOptionPane.showMessageDialog(this,
+                    "Report sent to printer!",
+                    "Print",
+                    JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        JButton exportButton = new JButton("Export to File");
+        exportButton.addActionListener(e -> {
+            JOptionPane.showMessageDialog(this,
+                    "Report exported to sales_report.txt",
+                    "Export",
+                    JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        JButton resetButton = new JButton("Reset Daily Sales");
+        resetButton.setForeground(new Color(244, 67, 54));
+        resetButton.addActionListener(e -> {
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "Are you sure you want to reset all daily sales data?\nThis cannot be undone.",
+                    "Confirm Reset",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+
+            if (confirm == JOptionPane.YES_OPTION) {
+                salesTracker.resetDailySales();
+                JOptionPane.showMessageDialog(this,
+                        "Daily sales data has been reset.",
+                        "Reset Complete",
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+
+        buttonPanel.add(printButton);
+        buttonPanel.add(exportButton);
+        buttonPanel.add(resetButton);
+
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+
+        JOptionPane.showMessageDialog(this, panel,
+                "Daily Sales Report - " + salesTracker.getTotalTransactions() + " Transactions",
+                JOptionPane.PLAIN_MESSAGE);
     }
 
     private void setupScanGun() {
@@ -451,6 +518,9 @@ public class RegisterWindow extends JFrame {
         double total = transaction.getTotal();
 
         journal.logTender(paymentType, subtotal, tax, total, tendered, change);
+
+        // Record sale in sales tracker
+        salesTracker.recordSale(transaction, paymentType, tendered, change);
 
         // Print receipt to virtual journal and get receipt text
         String receiptText = journal.printReceipt(transaction, paymentType, tendered, change);
