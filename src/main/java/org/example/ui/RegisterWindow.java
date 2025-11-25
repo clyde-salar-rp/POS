@@ -20,10 +20,26 @@ public class RegisterWindow extends JFrame {
     private final TransactionManager transactionManager;
     private Transaction transaction;
 
+    private enum RegisterMode {
+        TRANSACTION,  // Building the transaction (scan items, void, qty change)
+        TENDERING     // Payment phase
+    }
+
+    private RegisterMode currentMode = RegisterMode.TRANSACTION;
+    private JPanel mainContainer;
+    private CardLayout cardLayout;
+    private JPanel cardPanel;
+
+    // Transaction phase panels
+    private JPanel transactionView;
+
+    // Tendering phase panels
+    private JPanel tenderingView;
+    private TenderPanel tenderPanel;
+
     private ScanPanel scanPanel;
     private ItemsPanel itemsPanel;
     private TotalPanel totalPanel;
-    private ActionPanel actionPanel;
     private SuspendPanel suspendPanel;
     private QuickKeysPanel quickKeysPanel;
     private ScanGunListener scanGunListener;
@@ -99,10 +115,26 @@ public class RegisterWindow extends JFrame {
         menuBar.add(toolsMenu);
         setJMenuBar(menuBar);
 
-        // Create main layout
-        JPanel mainContainer = new JPanel(new BorderLayout(20, 20));
-        mainContainer.setBackground(ACCENT_COLOR);
-        mainContainer.setBorder(new EmptyBorder(20, 20, 20, 20));
+        // Create card layout to switch between modes
+        cardLayout = new CardLayout();
+        cardPanel = new JPanel(cardLayout);
+        cardPanel.setBackground(ACCENT_COLOR);
+
+        // Build both views
+        transactionView = buildTransactionView();
+        tenderingView = buildTenderingView();
+
+        cardPanel.add(transactionView, "TRANSACTION");
+        cardPanel.add(tenderingView, "TENDERING");
+
+        add(cardPanel);
+        setVisible(true);
+    }
+
+    private JPanel buildTransactionView() {
+        JPanel view = new JPanel(new BorderLayout(20, 20));
+        view.setBackground(ACCENT_COLOR);
+        view.setBorder(new EmptyBorder(20, 20, 20, 20));
 
         // Left side - Transaction area
         JPanel leftPanel = new JPanel(new BorderLayout(15, 15));
@@ -117,7 +149,7 @@ public class RegisterWindow extends JFrame {
         leftPanel.add(itemsPanel, BorderLayout.CENTER);
         leftPanel.add(totalPanel, BorderLayout.SOUTH);
 
-        // Right side - Controls
+        // Right side - Transaction controls
         JPanel rightPanel = new JPanel();
         rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.Y_AXIS));
         rightPanel.setBackground(ACCENT_COLOR);
@@ -127,34 +159,156 @@ public class RegisterWindow extends JFrame {
                 this::suspendTransaction,
                 this::resumeTransaction
         );
-        actionPanel = new ActionPanel(
+
+        // Transaction-specific action panel (void, qty change, void trans)
+        TransactionActionPanel transActionPanel = new TransactionActionPanel(
                 this::voidItem,
                 this::changeQuantity,
+                this::voidTransaction
+        );
+
+        quickKeysPanel = new QuickKeysPanel(this::processQuickKey);
+
+        // Payment button to switch to tendering mode
+        JButton paymentButton = createLargeButton("PROCEED TO PAYMENT", SUCCESS_COLOR, this::enterTenderingMode);
+
+        // Add spacing between panels
+        suspendPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
+        transActionPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
+        quickKeysPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 300));
+        paymentButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 70));
+
+        rightPanel.add(suspendPanel);
+        rightPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+        rightPanel.add(transActionPanel);
+        rightPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+        rightPanel.add(quickKeysPanel);
+        rightPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+        rightPanel.add(paymentButton);
+        rightPanel.add(Box.createVerticalGlue());
+
+        view.add(leftPanel, BorderLayout.CENTER);
+        view.add(rightPanel, BorderLayout.EAST);
+
+        return view;
+    }
+
+    private JPanel buildTenderingView() {
+        JPanel view = new JPanel(new BorderLayout(20, 20));
+        view.setBackground(ACCENT_COLOR);
+        view.setBorder(new EmptyBorder(20, 20, 20, 20));
+
+        // Left side - Transaction summary (read-only)
+        JPanel leftPanel = new JPanel(new BorderLayout(15, 15));
+        leftPanel.setBackground(ACCENT_COLOR);
+        leftPanel.setPreferredSize(new Dimension(850, 0));
+
+        // Read-only items panel with "PAYMENT IN PROGRESS" header
+        JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        headerPanel.setBackground(WARNING_COLOR);
+        JLabel headerLabel = new JLabel("PAYMENT IN PROGRESS");
+        headerLabel.setFont(new Font("SansSerif", Font.BOLD, 20));
+        headerLabel.setForeground(Color.WHITE);
+        headerPanel.add(headerLabel);
+
+        ItemsPanel readOnlyItems = new ItemsPanel();
+        TotalPanel readOnlyTotals = new TotalPanel();
+
+        leftPanel.add(headerPanel, BorderLayout.NORTH);
+        leftPanel.add(readOnlyItems, BorderLayout.CENTER);
+        leftPanel.add(readOnlyTotals, BorderLayout.SOUTH);
+
+        // Right side - Payment options
+        JPanel rightPanel = new JPanel();
+        rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.Y_AXIS));
+        rightPanel.setBackground(ACCENT_COLOR);
+        rightPanel.setPreferredSize(new Dimension(500, 0));
+
+        tenderPanel = new TenderPanel(
                 this::tenderExactDollar,
                 this::tenderNextDollar,
                 this::tenderCash,
                 this::tenderCredit,
-                this::voidTransaction
+                this::cancelTendering
         );
-        quickKeysPanel = new QuickKeysPanel(this::processQuickKey);
 
-        // Add spacing between panels
-        suspendPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
-        actionPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 320));
-        quickKeysPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 300));
+        tenderPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 500));
 
-        rightPanel.add(suspendPanel);
-        rightPanel.add(Box.createRigidArea(new Dimension(0, 15)));
-        rightPanel.add(actionPanel);
-        rightPanel.add(Box.createRigidArea(new Dimension(0, 15)));
-        rightPanel.add(quickKeysPanel);
+        rightPanel.add(tenderPanel);
         rightPanel.add(Box.createVerticalGlue());
 
-        mainContainer.add(leftPanel, BorderLayout.CENTER);
-        mainContainer.add(rightPanel, BorderLayout.EAST);
+        view.add(leftPanel, BorderLayout.CENTER);
+        view.add(rightPanel, BorderLayout.EAST);
 
-        add(mainContainer);
-        setVisible(true);
+        return view;
+    }
+
+    private JButton createLargeButton(String text, Color bgColor, Runnable action) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("SansSerif", Font.BOLD, 16));
+        button.setForeground(Color.WHITE);
+        button.setBackground(bgColor);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setOpaque(true);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setPreferredSize(new Dimension(0, 70));
+
+        button.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                button.setBackground(bgColor.darker());
+            }
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                button.setBackground(bgColor);
+            }
+        });
+
+        button.addActionListener(e -> action.run());
+        return button;
+    }
+
+    private void enterTenderingMode() {
+        if (transaction.getItemCount() == 0) {
+            JOptionPane.showMessageDialog(this, "No items in transaction");
+            return;
+        }
+
+        currentMode = RegisterMode.TENDERING;
+
+        // Update the read-only panels in tendering view with current transaction
+        updateTenderingView();
+
+        // Switch to tendering view
+        cardLayout.show(cardPanel, "TENDERING");
+
+        journal.logSystem("Entered TENDERING mode");
+    }
+
+    private void cancelTendering() {
+        currentMode = RegisterMode.TRANSACTION;
+        cardLayout.show(cardPanel, "TRANSACTION");
+        journal.logSystem("Cancelled tendering - returned to TRANSACTION mode");
+    }
+
+    private void updateTenderingView() {
+        // Find the read-only panels in tenderingView and update them
+        Component[] components = ((JPanel)tenderingView.getComponent(0)).getComponents();
+        for (Component comp : components) {
+            if (comp instanceof ItemsPanel) {
+                ((ItemsPanel) comp).updateItems(transaction.getItems());
+            } else if (comp instanceof TotalPanel) {
+                ((TotalPanel) comp).updateTotals(
+                        transaction.getSubtotal(),
+                        transaction.getTax(),
+                        transaction.getTotal()
+                );
+            }
+        }
+
+        // Update tender panel with current total
+        if (tenderPanel != null) {
+            tenderPanel.updateTotal(transaction.getTotal());
+        }
     }
 
     private void openDatabaseInspector() {
@@ -335,28 +489,19 @@ public class RegisterWindow extends JFrame {
     }
 
     private void tenderExactDollar() {
-        if (transaction.getItemCount() == 0) {
-            JOptionPane.showMessageDialog(this, "No items in transaction");
-            return;
-        }
+        if (currentMode != RegisterMode.TENDERING) return;
         completeTender("CASH", transaction.getTotal(), 0.0);
     }
 
     private void tenderNextDollar() {
-        if (transaction.getItemCount() == 0) {
-            JOptionPane.showMessageDialog(this, "No items in transaction");
-            return;
-        }
+        if (currentMode != RegisterMode.TENDERING) return;
         double total = transaction.getTotal();
         double nextDollar = Math.ceil(total);
         completeTender("CASH", nextDollar, nextDollar - total);
     }
 
     private void tenderCash() {
-        if (transaction.getItemCount() == 0) {
-            JOptionPane.showMessageDialog(this, "No items in transaction");
-            return;
-        }
+        if (currentMode != RegisterMode.TENDERING) return;
 
         JTextField cashField = new JTextField(10);
         cashField.setFont(new Font("Monospaced", Font.PLAIN, 16));
@@ -438,10 +583,7 @@ public class RegisterWindow extends JFrame {
     }
 
     private void tenderCredit() {
-        if (transaction.getItemCount() == 0) {
-            JOptionPane.showMessageDialog(this, "No items in transaction");
-            return;
-        }
+        if (currentMode != RegisterMode.TENDERING) return;
         completeTender("CREDIT", transaction.getTotal(), 0.0);
     }
 
@@ -466,6 +608,10 @@ public class RegisterWindow extends JFrame {
         org.example.ui.dialogs.ReceiptDialog.showReceipt(this, receiptText);
 
         completeTransaction();
+
+        // Return to transaction mode
+        currentMode = RegisterMode.TRANSACTION;
+        cardLayout.show(cardPanel, "TRANSACTION");
     }
 
     private void voidTransaction() {
