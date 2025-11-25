@@ -26,7 +26,6 @@ public class RegisterWindow extends JFrame {
     }
 
     private RegisterMode currentMode = RegisterMode.TRANSACTION;
-    private JPanel mainContainer;
     private CardLayout cardLayout;
     private JPanel cardPanel;
 
@@ -48,7 +47,6 @@ public class RegisterWindow extends JFrame {
     private static final Color ACCENT_COLOR = new Color(245, 245, 250);
     private static final Color SUCCESS_COLOR = new Color(76, 175, 80);
     private static final Color WARNING_COLOR = new Color(255, 152, 0);
-    private static final Color DANGER_COLOR = new Color(244, 67, 54);
 
     public RegisterWindow() {
         this.database = new ProductDatabase();
@@ -430,7 +428,7 @@ public class RegisterWindow extends JFrame {
                         if (text == null) return;
 
                         String newStr = text.replaceAll("[^0-9]", "");
-                        if (newStr.isEmpty() && text.length() > 0) {
+                        if (newStr.isEmpty() && !text.isEmpty()) {
                             Toolkit.getDefaultToolkit().beep();
                             return;
                         }
