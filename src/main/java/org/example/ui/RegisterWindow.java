@@ -280,6 +280,7 @@ public class RegisterWindow extends JFrame {
         }
 
         currentMode = RegisterMode.TENDERING;
+        journal.logSystem("Entered TENDERING mode");
 
         // Calculate discounts before entering tendering mode
         if (!calculateDiscount()) {
@@ -292,7 +293,6 @@ public class RegisterWindow extends JFrame {
         // Switch to tendering view
         cardLayout.show(cardPanel, "TENDERING");
 
-        journal.logSystem("Entered TENDERING mode");
     }
 
     private void cancelTendering() {
