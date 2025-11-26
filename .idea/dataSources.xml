@@ -1,18 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="POS Database" uuid="d11f1810-4922-4572-a0c2-9497d9f43ed4">
+    <data-source source="LOCAL" name="POS DB" uuid="fd5947b0-5be9-4b1e-8b4f-db80dc1296bf">
       <driver-ref>h2.unified</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.h2.Driver</jdbc-driver>
-      <jdbc-url>jdbc:h2:mem:pos;DB_CLOSE_DELAY=-1</jdbc-url>
+      <jdbc-url>jdbc:h2:tcp://localhost:9093/data/pos_transactions</jdbc-url>
       <jdbc-additional-properties>
         <property name="com.intellij.clouds.kubernetes.db.host.port" />
         <property name="com.intellij.clouds.kubernetes.db.enabled" value="false" />
         <property name="com.intellij.clouds.kubernetes.db.container.port" />
       </jdbc-additional-properties>
       <working-dir>$ProjectFileDir$</working-dir>
-      <keep-alive enable="true" />
     </data-source>
   </component>
 </project>

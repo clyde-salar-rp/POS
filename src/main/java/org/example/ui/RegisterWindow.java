@@ -1,7 +1,8 @@
 package org.example.ui;
 
-import org.example.ProductDatabase;
+import org.example.TransactionDatabase; // CHANGED
 import org.example.VirtualJournal;
+import org.example.ReceiptPrinter; // ADDED
 import org.example.input.ScanGunListener;
 import org.example.model.Product;
 import org.example.model.Transaction;
@@ -14,27 +15,26 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.io.File;
+import java.sql.SQLException; // ADDED
 
 public class RegisterWindow extends JFrame {
-    private final ProductDatabase database;
+    private final TransactionDatabase database; // CHANGED: Now handles both products AND transactions
     private final VirtualJournal journal;
+    private final ReceiptPrinter receiptPrinter; // ADDED
     private final TransactionManager transactionManager;
     private final DiscountService discountService;
     private Transaction transaction;
 
     private enum RegisterMode {
-        TRANSACTION,  // Building the transaction (scan items, void, qty change)
-        TENDERING     // Payment phase
+        TRANSACTION,
+        TENDERING
     }
 
     private RegisterMode currentMode = RegisterMode.TRANSACTION;
     private CardLayout cardLayout;
     private JPanel cardPanel;
 
-    // Transaction phase panels
     private JPanel transactionView;
-
-    // Tendering phase panels
     private JPanel tenderingView;
     private TenderPanel tenderPanel;
     private ItemsPanel readOnlyItemsPanel;
@@ -47,7 +47,6 @@ public class RegisterWindow extends JFrame {
     private QuickKeysPanel quickKeysPanel;
     private ScanGunListener scanGunListener;
 
-    // Store discount info
     private DiscountService.DiscountResponse currentDiscount;
 
     private static final Color PRIMARY_COLOR = new Color(25, 118, 210);
@@ -56,8 +55,9 @@ public class RegisterWindow extends JFrame {
     private static final Color WARNING_COLOR = new Color(255, 152, 0);
 
     public RegisterWindow() {
-        this.database = new ProductDatabase();
-        this.journal = new VirtualJournal();
+        this.database = new TransactionDatabase(); // CHANGED
+        this.receiptPrinter = new ReceiptPrinter(); // ADDED
+        this.journal = new VirtualJournal(receiptPrinter); // CHANGED
         this.transactionManager = new TransactionManager();
         this.discountService = new DiscountService();
         this.transaction = new Transaction();
@@ -73,7 +73,7 @@ public class RegisterWindow extends JFrame {
     private void setupShutdownHook() {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             journal.logSystem("Shutting down - closing database connection");
-            database.close();
+            database.close(); // CHANGED
         }));
     }
 
@@ -83,7 +83,7 @@ public class RegisterWindow extends JFrame {
         for (String path : paths) {
             if (new File(path).exists()) {
                 try {
-                    database.loadFromTSV(path);
+                    database.loadProductsFromTSV(path); // CHANGED
                     journal.logSystem("Loaded pricebook from: " + path);
                     return;
                 } catch (Exception e) {
@@ -104,7 +104,6 @@ public class RegisterWindow extends JFrame {
         setLocationRelativeTo(null);
         getContentPane().setBackground(ACCENT_COLOR);
 
-        // Menu bar with modern styling
         JMenuBar menuBar = new JMenuBar();
         menuBar.setBackground(PRIMARY_COLOR);
         menuBar.setBorderPainted(false);
@@ -118,15 +117,19 @@ public class RegisterWindow extends JFrame {
         dbInspectorItem.addActionListener(e -> openDatabaseInspector());
         toolsMenu.add(dbInspectorItem);
 
+        // ADDED: Reports menu item
+        JMenuItem reportsItem = new JMenuItem("Sales Reports");
+        reportsItem.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        reportsItem.addActionListener(e -> openReportsWindow());
+        toolsMenu.add(reportsItem);
+
         menuBar.add(toolsMenu);
         setJMenuBar(menuBar);
 
-        // Create card layout to switch between modes
         cardLayout = new CardLayout();
         cardPanel = new JPanel(cardLayout);
         cardPanel.setBackground(ACCENT_COLOR);
 
-        // Build both views
         transactionView = buildTransactionView();
         tenderingView = buildTenderingView();
 
@@ -137,12 +140,22 @@ public class RegisterWindow extends JFrame {
         setVisible(true);
     }
 
+    // ADDED: New method
+    private void openReportsWindow() {
+        new org.example.ui.ReportsWindow(database);
+    }
+
+    private void openDatabaseInspector() {
+        new org.example.DatabaseInspector(database); // CHANGED: Pass database
+    }
+
+    // ... [rest of buildTransactionView, buildTenderingView, createLargeButton methods stay the same] ...
+
     private JPanel buildTransactionView() {
         JPanel view = new JPanel(new BorderLayout(20, 20));
         view.setBackground(ACCENT_COLOR);
         view.setBorder(new EmptyBorder(20, 20, 20, 20));
 
-        // Left side - Transaction area
         JPanel leftPanel = new JPanel(new BorderLayout(15, 15));
         leftPanel.setBackground(ACCENT_COLOR);
         leftPanel.setPreferredSize(new Dimension(850, 0));
@@ -155,7 +168,6 @@ public class RegisterWindow extends JFrame {
         leftPanel.add(itemsPanel, BorderLayout.CENTER);
         leftPanel.add(totalPanel, BorderLayout.SOUTH);
 
-        // Right side - Transaction controls
         JPanel rightPanel = new JPanel();
         rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.Y_AXIS));
         rightPanel.setBackground(ACCENT_COLOR);
@@ -166,7 +178,6 @@ public class RegisterWindow extends JFrame {
                 this::resumeTransaction
         );
 
-        // Transaction-specific action panel (void, qty change, void trans)
         TransactionActionPanel transActionPanel = new TransactionActionPanel(
                 this::voidItem,
                 this::changeQuantity,
@@ -175,10 +186,8 @@ public class RegisterWindow extends JFrame {
 
         quickKeysPanel = new QuickKeysPanel(this::processQuickKey);
 
-        // Payment button to switch to tendering mode
         JButton paymentButton = createLargeButton("PROCEED TO PAYMENT", SUCCESS_COLOR, this::enterTenderingMode);
 
-        // Add spacing between panels
         suspendPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
         transActionPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
         quickKeysPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 300));
@@ -204,12 +213,10 @@ public class RegisterWindow extends JFrame {
         view.setBackground(ACCENT_COLOR);
         view.setBorder(new EmptyBorder(20, 20, 20, 20));
 
-        // Left side - Transaction summary (read-only)
         JPanel leftPanel = new JPanel(new BorderLayout(15, 15));
         leftPanel.setBackground(ACCENT_COLOR);
         leftPanel.setPreferredSize(new Dimension(850, 0));
 
-        // Read-only items panel with "PAYMENT IN PROGRESS" header
         JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         headerPanel.setBackground(WARNING_COLOR);
         JLabel headerLabel = new JLabel("PAYMENT IN PROGRESS - SCANNING DISABLED");
@@ -224,7 +231,6 @@ public class RegisterWindow extends JFrame {
         leftPanel.add(readOnlyItemsPanel, BorderLayout.CENTER);
         leftPanel.add(readOnlyTotalPanel, BorderLayout.SOUTH);
 
-        // Right side - Payment options
         JPanel rightPanel = new JPanel();
         rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.Y_AXIS));
         rightPanel.setBackground(ACCENT_COLOR);
@@ -273,6 +279,48 @@ public class RegisterWindow extends JFrame {
         return button;
     }
 
+    private void setupScanGun() {
+        scanGunListener = new ScanGunListener(
+                this::processUPC,
+                scanPanel.getScanField()
+        );
+
+        KeyboardFocusManager.getCurrentKeyboardFocusManager()
+                .addKeyEventDispatcher(scanGunListener);
+    }
+
+    private void processUPC(String upc, String source) {
+        if (currentMode == RegisterMode.TENDERING) {
+            journal.logSystem("SCAN BLOCKED - Currently in tendering mode");
+            return;
+        }
+
+        upc = upc.trim();
+        if (upc.isEmpty()) return;
+
+        Product product = database.findProductByUPC(upc); // CHANGED
+        journal.logScan(source, upc, product);
+
+        if (product != null) {
+            transaction.addItem(product);
+            updateDisplay();
+        } else {
+            JOptionPane.showMessageDialog(this,
+                    "Item not found: " + upc,
+                    "Not Found", JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+    private void processQuickKey(Product product) {
+        if (currentMode == RegisterMode.TENDERING) {
+            return;
+        }
+
+        journal.logQuickKey(product.getDescription(), product.getPrice());
+        transaction.addItem(product);
+        updateDisplay();
+    }
+
     private void enterTenderingMode() {
         if (transaction.getItemCount() == 0) {
             JOptionPane.showMessageDialog(this, "No items in transaction");
@@ -282,18 +330,13 @@ public class RegisterWindow extends JFrame {
         currentMode = RegisterMode.TENDERING;
         journal.logSystem("Entered TENDERING mode - scan gun DISABLED");
 
-        // **FIX: Disable scan gun listener**
         scanGunListener.setEnabled(false);
 
-        // Calculate discounts before entering tendering mode
         if (!calculateDiscount()) {
             return;
         }
 
-        // Update the read-only panels in tendering view with current transaction
         updateTenderingView();
-
-        // Switch to tendering view
         cardLayout.show(cardPanel, "TENDERING");
     }
 
@@ -301,16 +344,14 @@ public class RegisterWindow extends JFrame {
         currentMode = RegisterMode.TRANSACTION;
         currentDiscount = null;
 
-        // **FIX: Re-enable scan gun listener**
         scanGunListener.setEnabled(true);
         journal.logSystem("Cancelled tendering - scan gun RE-ENABLED");
 
-        updateDisplay(); // Reset to regular totals
+        updateDisplay();
         cardLayout.show(cardPanel, "TRANSACTION");
     }
 
     private void updateTenderingView() {
-        // Update read-only panels with discounted values
         if (currentDiscount != null) {
             readOnlyItemsPanel.updateItems(transaction.getItems());
             readOnlyTotalPanel.updateTotals(
@@ -320,12 +361,10 @@ public class RegisterWindow extends JFrame {
                     currentDiscount.totalDiscount
             );
 
-            // Update tender panel with discounted total
             if (tenderPanel != null) {
                 tenderPanel.updateTotal(currentDiscount.total);
             }
         } else {
-            // Fallback to regular totals
             readOnlyItemsPanel.updateItems(transaction.getItems());
             readOnlyTotalPanel.updateTotals(
                     transaction.getSubtotal(),
@@ -340,52 +379,197 @@ public class RegisterWindow extends JFrame {
         }
     }
 
-    private void openDatabaseInspector() {
-        new org.example.DatabaseInspector();
+    private boolean calculateDiscount() {
+        try {
+            journal.logSystem("Calculating discounts...");
+            currentDiscount = discountService.calculateDiscount(transaction);
+
+            if (currentDiscount.totalDiscount > 0) {
+                journal.logSystem(String.format("Discount applied: $%.2f", currentDiscount.totalDiscount));
+                for (DiscountService.DiscountResponse.AppliedDiscount discount : currentDiscount.appliedDiscounts) {
+                    journal.logSystem(String.format("  - %s: $%.2f (%s)",
+                            discount.ruleName, discount.amount, discount.description));
+                }
+            } else {
+                journal.logSystem("No discounts applied");
+            }
+
+            return true;
+
+        } catch (Exception e) {
+            journal.logSystem("Error calculating discount: " + e.getMessage());
+            JOptionPane.showMessageDialog(this,
+                    "Could not calculate discounts. Proceeding without discounts.\n\n" +
+                            "Error: " + e.getMessage(),
+                    "Discount Error",
+                    JOptionPane.WARNING_MESSAGE);
+
+            currentDiscount = new DiscountService.DiscountResponse();
+            currentDiscount.subtotal = transaction.getSubtotal();
+            currentDiscount.tax = transaction.getTax();
+            currentDiscount.total = transaction.getTotal();
+            currentDiscount.totalDiscount = 0.0;
+
+            return true;
+        }
     }
 
-    private void setupScanGun() {
-        scanGunListener = new ScanGunListener(
-                this::processUPC,
-                scanPanel.getScanField()
+    // MODIFIED: Added database save
+    private void completeTender(String paymentType, double tendered, double change) {
+        if (currentDiscount == null) return;
+
+        double subtotal = currentDiscount.subtotal;
+        double tax = currentDiscount.tax;
+        double total = currentDiscount.total;
+        double discount = currentDiscount.totalDiscount;
+
+        journal.logTender(paymentType, subtotal, tax, total, tendered, change);
+
+        if (discount > 0) {
+            journal.logSystem(String.format("Total discount: $%.2f", discount));
+        }
+
+        String receiptText = journal.printReceipt(
+                transaction,
+                paymentType,
+                tendered,
+                change,
+                currentDiscount
         );
 
-        KeyboardFocusManager.getCurrentKeyboardFocusManager()
-                .addKeyEventDispatcher(scanGunListener);
-    }
-
-    private void processUPC(String upc, String source) {
-        // **FIX: Check if in tendering mode**
-        if (currentMode == RegisterMode.TENDERING) {
-            journal.logSystem("SCAN BLOCKED - Currently in tendering mode");
-            return;
+        // ADDED: Save transaction to database
+        try {
+            long txId = database.saveTransaction(
+                    transaction,
+                    paymentType,
+                    tendered,
+                    change,
+                    "COMPLETED",
+                    receiptPrinter.getReceiptNumber(),
+                    discount,
+                    currentDiscount
+            );
+            journal.logSystem("Transaction saved to database (ID: " + txId + ")");
+        } catch (SQLException e) {
+            journal.logSystem("ERROR: Failed to save transaction - " + e.getMessage());
+            e.printStackTrace();
         }
 
-        upc = upc.trim();
-        if (upc.isEmpty()) return;
-
-        Product product = database.findByUPC(upc);
-        journal.logScan(source, upc, product);
-
-        if (product != null) {
-            transaction.addItem(product);
-            updateDisplay();
-        } else {
+        if (change > 0) {
             JOptionPane.showMessageDialog(this,
-                    "Item not found: " + upc,
-                    "Not Found", JOptionPane.WARNING_MESSAGE);
+                    String.format("Change due: $%.2f", change),
+                    "Transaction Complete", JOptionPane.INFORMATION_MESSAGE);
+        }
+
+        org.example.ui.dialogs.ReceiptDialog.showReceipt(this, receiptText);
+
+        completeTransaction();
+
+        currentMode = RegisterMode.TRANSACTION;
+        scanGunListener.setEnabled(true);
+        journal.logSystem("Transaction completed - scan gun RE-ENABLED");
+        cardLayout.show(cardPanel, "TRANSACTION");
+    }
+
+    private void tenderExactDollar() {
+        if (currentMode != RegisterMode.TENDERING) return;
+        if (currentDiscount == null) return;
+        completeTender("CASH", currentDiscount.total, 0.0);
+    }
+
+    private void tenderNextDollar() {
+        if (currentMode != RegisterMode.TENDERING) return;
+        if (currentDiscount == null) return;
+        double nextDollar = Math.ceil(currentDiscount.total);
+        completeTender("CASH", nextDollar, nextDollar - currentDiscount.total);
+    }
+
+    private void tenderCash() {
+        if (currentMode != RegisterMode.TENDERING) return;
+        if (currentDiscount == null) return;
+
+        JTextField cashField = new JTextField(10);
+        cashField.setFont(new Font("Monospaced", Font.PLAIN, 16));
+
+        ((javax.swing.text.AbstractDocument) cashField.getDocument()).setDocumentFilter(
+                new javax.swing.text.DocumentFilter() {
+                    @Override
+                    public void insertString(FilterBypass fb, int offset, String string,
+                                             javax.swing.text.AttributeSet attr)
+                            throws javax.swing.text.BadLocationException {
+                        if (string == null) return;
+
+                        String newStr = string.replaceAll("[^0-9.]", "");
+                        if (wouldExceedLimit(fb.getDocument(), offset, newStr, 0)) {
+                            Toolkit.getDefaultToolkit().beep();
+                            return;
+                        }
+                        super.insertString(fb, offset, newStr, attr);
+                    }
+
+                    @Override
+                    public void replace(FilterBypass fb, int offset, int length, String text,
+                                        javax.swing.text.AttributeSet attrs)
+                            throws javax.swing.text.BadLocationException {
+                        if (text == null) return;
+
+                        String newStr = text.replaceAll("[^0-9.]", "");
+                        if (wouldExceedLimit(fb.getDocument(), offset, newStr, length)) {
+                            Toolkit.getDefaultToolkit().beep();
+                            return;
+                        }
+                        super.replace(fb, offset, length, newStr, attrs);
+                    }
+
+                    private boolean wouldExceedLimit(javax.swing.text.Document doc, int offset,
+                                                     String newText, int replaceLength) {
+                        try {
+                            String current = doc.getText(0, doc.getLength());
+                            String before = current.substring(0, offset);
+                            String after = current.substring(offset + replaceLength);
+                            String result = before + newText + after;
+                            String digitsOnly = result.replace(".", "");
+                            return digitsOnly.length() > 7;
+                        } catch (javax.swing.text.BadLocationException e) {
+                            return false;
+                        }
+                    }
+                });
+
+        Object[] message = {
+                String.format("Total: $%.2f", currentDiscount.total),
+                "Enter cash tendered (max 7 digits):",
+                cashField
+        };
+
+        int option = JOptionPane.showConfirmDialog(this, message, "Cash Payment",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (option == JOptionPane.OK_OPTION) {
+            String input = cashField.getText().trim();
+
+            if (input.isEmpty()) {
+                return;
+            }
+
+            try {
+                double tendered = Double.parseDouble(input);
+
+                if (tendered >= currentDiscount.total) {
+                    completeTender("CASH", tendered, tendered - currentDiscount.total);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Insufficient payment");
+                }
+            } catch (NumberFormatException e) {
+                JOptionPane.showMessageDialog(this, "Invalid amount");
+            }
         }
     }
 
-    private void processQuickKey(Product product) {
-        // Quick keys only work in transaction mode
-        if (currentMode == RegisterMode.TENDERING) {
-            return;
-        }
-
-        journal.logQuickKey(product.getDescription(), product.getPrice());
-        transaction.addItem(product);
-        updateDisplay();
+    private void tenderCredit() {
+        if (currentMode != RegisterMode.TENDERING) return;
+        if (currentDiscount == null) return;
+        completeTender("CREDIT", currentDiscount.total, 0.0);
     }
 
     private void voidItem() {
@@ -528,187 +712,6 @@ public class RegisterWindow extends JFrame {
         }
     }
 
-    private void tenderExactDollar() {
-        if (currentMode != RegisterMode.TENDERING) return;
-        if (currentDiscount == null) return;
-        completeTender("CASH", currentDiscount.total, 0.0);
-    }
-
-    private void tenderNextDollar() {
-        if (currentMode != RegisterMode.TENDERING) return;
-        if (currentDiscount == null) return;
-        double nextDollar = Math.ceil(currentDiscount.total);
-        completeTender("CASH", nextDollar, nextDollar - currentDiscount.total);
-    }
-
-    private void tenderCash() {
-        if (currentMode != RegisterMode.TENDERING) return;
-        if (currentDiscount == null) return;
-
-        JTextField cashField = new JTextField(10);
-        cashField.setFont(new Font("Monospaced", Font.PLAIN, 16));
-
-        ((javax.swing.text.AbstractDocument) cashField.getDocument()).setDocumentFilter(
-                new javax.swing.text.DocumentFilter() {
-                    @Override
-                    public void insertString(FilterBypass fb, int offset, String string,
-                                             javax.swing.text.AttributeSet attr)
-                            throws javax.swing.text.BadLocationException {
-                        if (string == null) return;
-
-                        String newStr = string.replaceAll("[^0-9.]", "");
-                        if (wouldExceedLimit(fb.getDocument(), offset, newStr, 0)) {
-                            Toolkit.getDefaultToolkit().beep();
-                            return;
-                        }
-                        super.insertString(fb, offset, newStr, attr);
-                    }
-
-                    @Override
-                    public void replace(FilterBypass fb, int offset, int length, String text,
-                                        javax.swing.text.AttributeSet attrs)
-                            throws javax.swing.text.BadLocationException {
-                        if (text == null) return;
-
-                        String newStr = text.replaceAll("[^0-9.]", "");
-                        if (wouldExceedLimit(fb.getDocument(), offset, newStr, length)) {
-                            Toolkit.getDefaultToolkit().beep();
-                            return;
-                        }
-                        super.replace(fb, offset, length, newStr, attrs);
-                    }
-
-                    private boolean wouldExceedLimit(javax.swing.text.Document doc, int offset,
-                                                     String newText, int replaceLength) {
-                        try {
-                            String current = doc.getText(0, doc.getLength());
-                            String before = current.substring(0, offset);
-                            String after = current.substring(offset + replaceLength);
-                            String result = before + newText + after;
-                            String digitsOnly = result.replace(".", "");
-                            return digitsOnly.length() > 7;
-                        } catch (javax.swing.text.BadLocationException e) {
-                            return false;
-                        }
-                    }
-                });
-
-        Object[] message = {
-                String.format("Total: $%.2f", currentDiscount.total),
-                "Enter cash tendered (max 7 digits):",
-                cashField
-        };
-
-        int option = JOptionPane.showConfirmDialog(this, message, "Cash Payment",
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-
-        if (option == JOptionPane.OK_OPTION) {
-            String input = cashField.getText().trim();
-
-            if (input.isEmpty()) {
-                return;
-            }
-
-            try {
-                double tendered = Double.parseDouble(input);
-
-                if (tendered >= currentDiscount.total) {
-                    completeTender("CASH", tendered, tendered - currentDiscount.total);
-                } else {
-                    JOptionPane.showMessageDialog(this, "Insufficient payment");
-                }
-            } catch (NumberFormatException e) {
-                JOptionPane.showMessageDialog(this, "Invalid amount");
-            }
-        }
-    }
-
-    private void tenderCredit() {
-        if (currentMode != RegisterMode.TENDERING) return;
-        if (currentDiscount == null) return;
-        completeTender("CREDIT", currentDiscount.total, 0.0);
-    }
-
-    private boolean calculateDiscount() {
-        try {
-            journal.logSystem("Calculating discounts...");
-            currentDiscount = discountService.calculateDiscount(transaction);
-
-            // Log discount details
-            if (currentDiscount.totalDiscount > 0) {
-                journal.logSystem(String.format("Discount applied: $%.2f", currentDiscount.totalDiscount));
-                for (DiscountService.DiscountResponse.AppliedDiscount discount : currentDiscount.appliedDiscounts) {
-                    journal.logSystem(String.format("  - %s: $%.2f (%s)",
-                            discount.ruleName, discount.amount, discount.description));
-                }
-            } else {
-                journal.logSystem("No discounts applied");
-            }
-
-            return true;
-
-        } catch (Exception e) {
-            journal.logSystem("Error calculating discount: " + e.getMessage());
-            JOptionPane.showMessageDialog(this,
-                    "Could not calculate discounts. Proceeding without discounts.\n\n" +
-                            "Error: " + e.getMessage(),
-                    "Discount Error",
-                    JOptionPane.WARNING_MESSAGE);
-
-            // Use regular totals as fallback
-            currentDiscount = new DiscountService.DiscountResponse();
-            currentDiscount.subtotal = transaction.getSubtotal();
-            currentDiscount.tax = transaction.getTax();
-            currentDiscount.total = transaction.getTotal();
-            currentDiscount.totalDiscount = 0.0;
-
-            return true;
-        }
-    }
-
-    // Replace the completeTender method in RegisterWindow.java with this:
-    private void completeTender(String paymentType, double tendered, double change) {
-        if (currentDiscount == null) return;
-
-        double subtotal = currentDiscount.subtotal;
-        double tax = currentDiscount.tax;
-        double total = currentDiscount.total;
-        double discount = currentDiscount.totalDiscount;
-
-        journal.logTender(paymentType, subtotal, tax, total, tendered, change);
-
-        if (discount > 0) {
-            journal.logSystem(String.format("Total discount: $%.2f", discount));
-        }
-
-        // Print receipt to virtual journal with discount info and get receipt text
-        String receiptText = journal.printReceipt(
-                transaction,
-                paymentType,
-                tendered,
-                change,
-                currentDiscount  // Pass discount info to receipt
-        );
-
-        // Show change dialog if applicable
-        if (change > 0) {
-            JOptionPane.showMessageDialog(this,
-                    String.format("Change due: $%.2f", change),
-                    "Transaction Complete", JOptionPane.INFORMATION_MESSAGE);
-        }
-
-        // Show receipt dialog
-        org.example.ui.dialogs.ReceiptDialog.showReceipt(this, receiptText);
-
-        completeTransaction();
-
-        // Return to transaction mode and re-enable scan gun
-        currentMode = RegisterMode.TRANSACTION;
-        scanGunListener.setEnabled(true);
-        journal.logSystem("Transaction completed - scan gun RE-ENABLED");
-        cardLayout.show(cardPanel, "TRANSACTION");
-    }
-
     private void voidTransaction() {
         if (transaction.getItemCount() > 0) {
             journal.logTransaction("VOIDED", transaction.getTotal());
@@ -721,9 +724,8 @@ public class RegisterWindow extends JFrame {
 
     private void completeTransaction() {
         if(transaction.getItemCount() > 0) {
-            // Log the discounted total if available, otherwise use regular total
             double finalTotal = (currentDiscount != null)
-            ? currentDiscount.total : transaction.getTotal();
+                    ? currentDiscount.total : transaction.getTotal();
             journal.logTransaction("COMPLETED", finalTotal);
         }
         currentDiscount = null;
@@ -801,7 +803,6 @@ public class RegisterWindow extends JFrame {
     private void updateDisplay() {
         itemsPanel.updateItems(transaction.getItems());
 
-        // If no discount calculated yet, show regular totals
         if (currentDiscount == null) {
             totalPanel.updateTotals(
                     transaction.getSubtotal(),

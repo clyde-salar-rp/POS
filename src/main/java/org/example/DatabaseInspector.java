@@ -1,19 +1,23 @@
 package org.example;
 
-import org.example.ProductDatabase;
+import org.example.TransactionDatabase; // CHANGED
+import org.example.model.Product;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.sql.*;
+import java.util.List;
 
 public class DatabaseInspector extends JFrame {
     private final JTable table;
     private final DefaultTableModel tableModel;
     private final JLabel statusLabel;
-    private Connection connection;
+    private final TransactionDatabase database; // CHANGED
 
-    public DatabaseInspector() {
-        setTitle("Database Inspector");
+    // CHANGED: Constructor now accepts TransactionDatabase
+    public DatabaseInspector(TransactionDatabase database) {
+        this.database = database;
+
+        setTitle("Product Database Inspector");
         setSize(900, 600);
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
@@ -35,7 +39,7 @@ public class DatabaseInspector extends JFrame {
         topPanel.add(statusLabel);
 
         // Create table
-        String[] columns = {"UPC", "Description", "Price"};
+        String[] columns = {"UPC", "Description", "Price", "Category"}; // ADDED: Category column
         tableModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -48,6 +52,7 @@ public class DatabaseInspector extends JFrame {
         table.getColumnModel().getColumn(0).setPreferredWidth(150);
         table.getColumnModel().getColumn(1).setPreferredWidth(400);
         table.getColumnModel().getColumn(2).setPreferredWidth(100);
+        table.getColumnModel().getColumn(3).setPreferredWidth(100); // ADDED
 
         JScrollPane scrollPane = new JScrollPane(table);
 
@@ -61,48 +66,31 @@ public class DatabaseInspector extends JFrame {
         add(scrollPane, BorderLayout.CENTER);
         add(bottomPanel, BorderLayout.SOUTH);
 
-        connectToDatabase();
         loadAllProducts();
 
         setLocationRelativeTo(null);
         setVisible(true);
     }
 
-    private void connectToDatabase() {
-        try {
-            connection = DriverManager.getConnection(
-                    "jdbc:h2:mem:pos;DB_CLOSE_DELAY=-1", "sa", "");
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Could not connect to database: " + e.getMessage(),
-                    "Error", JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
+    // CHANGED: Now uses database.searchProducts()
     private void loadAllProducts() {
         tableModel.setRowCount(0);
-        String sql = "SELECT upc, description, price FROM products ORDER BY description LIMIT 1000";
 
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+        List<Product> products = database.searchProducts("");
 
-            int count = 0;
-            while (rs.next()) {
-                tableModel.addRow(new Object[]{
-                        rs.getString("upc"),
-                        rs.getString("description"),
-                        String.format("$%.2f", rs.getDouble("price"))
-                });
-                count++;
-            }
-
-            statusLabel.setText("Loaded " + count + " products");
-
-        } catch (SQLException e) {
-            statusLabel.setText("Error: " + e.getMessage());
+        for (Product product : products) {
+            tableModel.addRow(new Object[]{
+                    product.getUpc(),
+                    product.getDescription(),
+                    String.format("$%.2f", product.getPrice()),
+                    determineCategory(product.getDescription()) // ADDED
+            });
         }
+
+        statusLabel.setText("Loaded " + products.size() + " products (max 1000 shown)");
     }
 
+    // CHANGED: Now uses database.searchProducts()
     private void searchProducts(String keyword) {
         if (keyword.trim().isEmpty()) {
             loadAllProducts();
@@ -110,66 +98,25 @@ public class DatabaseInspector extends JFrame {
         }
 
         tableModel.setRowCount(0);
-        String sql = "SELECT upc, description, price FROM products " +
-                "WHERE description LIKE ? OR upc LIKE ? " +
-                "ORDER BY description LIMIT 100";
+        List<Product> products = database.searchProducts(keyword);
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            String pattern = "%" + keyword + "%";
-            pstmt.setString(1, pattern);
-            pstmt.setString(2, pattern);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                int count = 0;
-                while (rs.next()) {
-                    tableModel.addRow(new Object[]{
-                            rs.getString("upc"),
-                            rs.getString("description"),
-                            String.format("$%.2f", rs.getDouble("price"))
-                    });
-                    count++;
-                }
-
-                statusLabel.setText("Found " + count + " matching products");
-            }
-
-        } catch (SQLException e) {
-            statusLabel.setText("Error: " + e.getMessage());
+        for (Product product : products) {
+            tableModel.addRow(new Object[]{
+                    product.getUpc(),
+                    product.getDescription(),
+                    String.format("$%.2f", product.getPrice()),
+                    determineCategory(product.getDescription()) // ADDED
+            });
         }
+
+        statusLabel.setText("Found " + products.size() + " matching products");
     }
 
     private void showStatistics() {
         StringBuilder stats = new StringBuilder();
         stats.append("Database Statistics:\n\n");
-
-        try (Statement stmt = connection.createStatement()) {
-            // Total count
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM products");
-            if (rs.next()) {
-                stats.append("Total Products: ").append(rs.getInt("count")).append("\n");
-            }
-
-            // Price statistics
-            rs = stmt.executeQuery(
-                    "SELECT MIN(price) as min, MAX(price) as max, AVG(price) as avg FROM products");
-            if (rs.next()) {
-                stats.append(String.format("Min Price: $%.2f\n", rs.getDouble("min")));
-                stats.append(String.format("Max Price: $%.2f\n", rs.getDouble("max")));
-                stats.append(String.format("Avg Price: $%.2f\n", rs.getDouble("avg")));
-            }
-
-            // Most expensive items
-            stats.append("\nTop 5 Most Expensive:\n");
-            rs = stmt.executeQuery(
-                    "SELECT description, price FROM products ORDER BY price DESC LIMIT 5");
-            while (rs.next()) {
-                stats.append(String.format("  %s - $%.2f\n",
-                        rs.getString("description"), rs.getDouble("price")));
-            }
-
-        } catch (SQLException e) {
-            stats.append("\nError: ").append(e.getMessage());
-        }
+        stats.append("Total Products: ").append(database.getProductCount()).append("\n");
+        stats.append("\nNote: More detailed statistics available in Sales Reports\n");
 
         JTextArea textArea = new JTextArea(stats.toString());
         textArea.setEditable(false);
@@ -181,15 +128,31 @@ public class DatabaseInspector extends JFrame {
                 JOptionPane.INFORMATION_MESSAGE);
     }
 
-    @Override
-    public void dispose() {
-        try {
-            if (connection != null && !connection.isClosed()) {
-                connection.close();
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
+    // ADDED: Category determination
+    private String determineCategory(String description) {
+        String desc = description.toUpperCase();
+
+        if (desc.contains("COKE") || desc.contains("PEPSI") || desc.contains("SPRITE") ||
+                desc.contains("MONSTER") || desc.contains("RED BULL") || desc.contains("GATORADE") ||
+                desc.contains("WATER") || desc.contains("TEA") || desc.contains("COFFEE")) {
+            return "BEVERAGE";
         }
-        super.dispose();
+
+        if (desc.contains("PIZZA") || desc.contains("HOT DOG") || desc.contains("BURGER") ||
+                desc.contains("SANDWICH") || desc.contains("DONUT") || desc.contains("TAQUITO")) {
+            return "FOOD";
+        }
+
+        if (desc.contains("MARLBORO") || desc.contains("CAMEL") || desc.contains("NEWPORT") ||
+                desc.contains("CIGAR") || desc.contains("VUSE") || desc.contains("JUUL")) {
+            return "TOBACCO";
+        }
+
+        if (desc.contains("CHIP") || desc.contains("LAYS") || desc.contains("DORITOS") ||
+                desc.contains("SNICKERS") || desc.contains("CANDY")) {
+            return "SNACK";
+        }
+
+        return "OTHER";
     }
 }

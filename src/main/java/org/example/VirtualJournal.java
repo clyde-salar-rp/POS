@@ -11,7 +11,7 @@ public class VirtualJournal {
             DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
     private final ReceiptPrinter receiptPrinter;
 
-    public VirtualJournal() {
+    public VirtualJournal(ReceiptPrinter receiptPrinter) {
         this.receiptPrinter = new ReceiptPrinter();
     }
 
