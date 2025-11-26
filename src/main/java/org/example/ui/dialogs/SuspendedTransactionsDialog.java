@@ -1,7 +1,7 @@
 package org.example.ui.dialogs;
 
+import org.example.TransactionDatabase.SuspendedTransactionInfo;
 import org.example.model.TransactionManager;
-import org.example.model.TransactionManager.SuspendedTransaction;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -9,9 +9,9 @@ import java.awt.*;
 import java.util.List;
 
 public class SuspendedTransactionsDialog extends JDialog {
-    private final JList<SuspendedTransaction> transactionList;
-    private final DefaultListModel<SuspendedTransaction> listModel;
-    private SuspendedTransaction selectedTransaction;
+    private final JList<SuspendedTransactionInfo> transactionList;
+    private final DefaultListModel<SuspendedTransactionInfo> listModel;
+    private SuspendedTransactionInfo selectedTransaction;
 
     public SuspendedTransactionsDialog(Frame owner, TransactionManager manager) {
         super(owner, "Suspended Transactions", true);
@@ -19,8 +19,8 @@ public class SuspendedTransactionsDialog extends JDialog {
         setLocationRelativeTo(owner);
 
         listModel = new DefaultListModel<>();
-        List<SuspendedTransaction> suspended = manager.getSuspendedTransactions();
-        for (SuspendedTransaction trans : suspended) {
+        List<SuspendedTransactionInfo> suspended = manager.getSuspendedTransactions();
+        for (SuspendedTransactionInfo trans : suspended) {
             listModel.addElement(trans);
         }
 
@@ -63,11 +63,11 @@ public class SuspendedTransactionsDialog extends JDialog {
         add(mainPanel);
     }
 
-    public SuspendedTransaction getSelectedTransaction() {
+    public SuspendedTransactionInfo getSelectedTransaction() {
         return selectedTransaction;
     }
 
-    public static SuspendedTransaction showDialog(Frame owner, TransactionManager manager) {
+    public static SuspendedTransactionInfo showDialog(Frame owner, TransactionManager manager) {
         if (!manager.hasSuspendedTransactions()) {
             JOptionPane.showMessageDialog(owner,
                     "No suspended transactions available",

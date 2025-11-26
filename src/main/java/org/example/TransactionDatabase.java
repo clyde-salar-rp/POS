@@ -5,6 +5,7 @@ import org.example.model.Transaction;
 
 import java.sql.*;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -16,7 +17,7 @@ public class TransactionDatabase {
     private static final String DB_USER = "sa";
     private static final String DB_PASSWORD = "";
     private org.h2.tools.Server server;
-    private static final int TCP_PORT = 9093; // Changed to avoid conflicts
+    private static final int TCP_PORT = 9093;
 
     // In-memory product lookup cache (replaces ProductDatabase for products table)
     private final Map<String, Product> productCache = new HashMap<>();
@@ -361,6 +362,193 @@ public class TransactionDatabase {
         }
     }
 
+    // ========== SUSPENDED TRANSACTION MANAGEMENT ==========
+
+    public int suspendTransaction(Transaction transaction) throws SQLException {
+        if (transaction.getItemCount() == 0) {
+            return -1;
+        }
+
+        String transactionSql = """
+            INSERT INTO transactions (
+                transaction_date, cashier, register_id, 
+                subtotal, discount, tax, total,
+                payment_type, tendered, change_amount, 
+                status, receipt_number
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """;
+
+        String itemSql = """
+            INSERT INTO transaction_items (
+                transaction_id, upc, description, price, quantity, line_total, category
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """;
+
+        connection.setAutoCommit(false);
+
+        try {
+            // Check if this transaction was previously suspended
+            Integer existingId = transaction.getSuspendedId();
+
+            if (existingId != null) {
+                // Update existing suspended transaction
+                deleteSuspendedTransaction(existingId);
+            }
+
+            // Insert new suspended transaction
+            long transactionId;
+            try (PreparedStatement stmt = connection.prepareStatement(transactionSql,
+                    Statement.RETURN_GENERATED_KEYS)) {
+
+                stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now()));
+                stmt.setString(2, "OPERATOR01");
+                stmt.setString(3, "REG-001");
+                stmt.setDouble(4, transaction.getSubtotal());
+                stmt.setDouble(5, 0.0); // No discount for suspended
+                stmt.setDouble(6, transaction.getTax());
+                stmt.setDouble(7, transaction.getTotal());
+                stmt.setString(8, null); // No payment yet
+                stmt.setDouble(9, 0.0);
+                stmt.setDouble(10, 0.0);
+                stmt.setString(11, "SUSPENDED");
+                stmt.setInt(12, 0); // No receipt number yet
+
+                stmt.executeUpdate();
+
+                ResultSet rs = stmt.getGeneratedKeys();
+                if (rs.next()) {
+                    transactionId = rs.getLong(1);
+                } else {
+                    throw new SQLException("Failed to get transaction ID");
+                }
+            }
+
+            // Insert items
+            try (PreparedStatement stmt = connection.prepareStatement(itemSql)) {
+                for (Product product : transaction.getItems()) {
+                    stmt.setLong(1, transactionId);
+                    stmt.setString(2, product.getUpc());
+                    stmt.setString(3, product.getDescription());
+                    stmt.setDouble(4, product.getPrice());
+                    stmt.setInt(5, product.getQuantity());
+                    stmt.setDouble(6, product.getLineTotal());
+                    stmt.setString(7, determineCategory(product.getDescription()));
+                    stmt.addBatch();
+                }
+                stmt.executeBatch();
+            }
+
+            connection.commit();
+            return (int) transactionId;
+
+        } catch (SQLException e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(true);
+        }
+    }
+
+    public Transaction resumeTransaction(int transactionId) throws SQLException {
+        String transactionSql = """
+            SELECT subtotal, tax, total 
+            FROM transactions 
+            WHERE id = ? AND status = 'SUSPENDED'
+        """;
+
+        String itemsSql = """
+            SELECT upc, description, price, quantity, line_total
+            FROM transaction_items
+            WHERE transaction_id = ?
+        """;
+
+        Transaction transaction = new Transaction();
+        transaction.setSuspendedId(transactionId);
+
+        // Get transaction details
+        try (PreparedStatement stmt = connection.prepareStatement(transactionSql)) {
+            stmt.setInt(1, transactionId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) {
+                    return null; // Transaction not found or not suspended
+                }
+            }
+        }
+
+        // Get items
+        try (PreparedStatement stmt = connection.prepareStatement(itemsSql)) {
+            stmt.setInt(1, transactionId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Product product = new Product(
+                            rs.getString("upc"),
+                            rs.getString("description"),
+                            rs.getDouble("price")
+                    );
+                    int quantity = rs.getInt("quantity");
+                    transaction.addItem(product, quantity);
+                }
+            }
+        }
+
+        return transaction;
+    }
+
+    public void deleteSuspendedTransaction(int transactionId) throws SQLException {
+        String sql = "DELETE FROM transactions WHERE id = ? AND status = 'SUSPENDED'";
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, transactionId);
+            stmt.executeUpdate();
+        }
+    }
+
+    public List<SuspendedTransactionInfo> getSuspendedTransactions() throws SQLException {
+        String sql = """
+            SELECT 
+                t.id,
+                t.transaction_date,
+                COUNT(ti.id) as item_count,
+                t.total
+            FROM transactions t
+            LEFT JOIN transaction_items ti ON t.id = ti.transaction_id
+            WHERE t.status = 'SUSPENDED'
+            GROUP BY t.id, t.transaction_date, t.total
+            ORDER BY t.transaction_date DESC
+        """;
+
+        List<SuspendedTransactionInfo> suspended = new ArrayList<>();
+
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                suspended.add(new SuspendedTransactionInfo(
+                        rs.getInt("id"),
+                        rs.getTimestamp("transaction_date").toLocalDateTime(),
+                        rs.getInt("item_count"),
+                        rs.getDouble("total")
+                ));
+            }
+        }
+
+        return suspended;
+    }
+
+    public boolean hasSuspendedTransactions() throws SQLException {
+        String sql = "SELECT COUNT(*) as count FROM transactions WHERE status = 'SUSPENDED'";
+
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            if (rs.next()) {
+                return rs.getInt("count") > 0;
+            }
+        }
+
+        return false;
+    }
+
     private String determineCategory(Product product) {
         return determineCategory(product.getDescription());
     }
@@ -596,5 +784,22 @@ public class TransactionDatabase {
     ) {
         public int totalCount() { return cashCount + creditCount; }
         public double totalSales() { return cashTotal + creditTotal; }
+    }
+
+    public record SuspendedTransactionInfo(
+            int id,
+            LocalDateTime suspendTime,
+            int itemCount,
+            double total
+    ) {
+        @Override
+        public String toString() {
+            DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern("HH:mm:ss");
+            return String.format("Trans #%d - %s - %d items - $%.2f",
+                    id,
+                    suspendTime.format(timeFormat),
+                    itemCount,
+                    total);
+        }
     }
 }

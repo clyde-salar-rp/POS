@@ -1,8 +1,8 @@
 package org.example.ui;
 
-import org.example.TransactionDatabase; // CHANGED
+import org.example.TransactionDatabase;
 import org.example.VirtualJournal;
-import org.example.ReceiptPrinter; // ADDED
+import org.example.ReceiptPrinter;
 import org.example.input.ScanGunListener;
 import org.example.model.Product;
 import org.example.model.Transaction;
@@ -15,12 +15,12 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.io.File;
-import java.sql.SQLException; // ADDED
+import java.sql.SQLException;
 
 public class RegisterWindow extends JFrame {
-    private final TransactionDatabase database; // CHANGED: Now handles both products AND transactions
+    private final TransactionDatabase database;
     private final VirtualJournal journal;
-    private final ReceiptPrinter receiptPrinter; // ADDED
+    private final ReceiptPrinter receiptPrinter;
     private final TransactionManager transactionManager;
     private final DiscountService discountService;
     private Transaction transaction;
@@ -55,10 +55,10 @@ public class RegisterWindow extends JFrame {
     private static final Color WARNING_COLOR = new Color(255, 152, 0);
 
     public RegisterWindow() {
-        this.database = new TransactionDatabase(); // CHANGED
-        this.receiptPrinter = new ReceiptPrinter(); // ADDED
-        this.journal = new VirtualJournal(receiptPrinter); // CHANGED
-        this.transactionManager = new TransactionManager();
+        this.database = new TransactionDatabase();
+        this.receiptPrinter = new ReceiptPrinter();
+        this.journal = new VirtualJournal(receiptPrinter);
+        this.transactionManager = new TransactionManager(database); // CHANGED: Pass database
         this.discountService = new DiscountService();
         this.transaction = new Transaction();
 
@@ -73,7 +73,7 @@ public class RegisterWindow extends JFrame {
     private void setupShutdownHook() {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             journal.logSystem("Shutting down - closing database connection");
-            database.close(); // CHANGED
+            database.close();
         }));
     }
 
@@ -83,7 +83,7 @@ public class RegisterWindow extends JFrame {
         for (String path : paths) {
             if (new File(path).exists()) {
                 try {
-                    database.loadProductsFromTSV(path); // CHANGED
+                    database.loadProductsFromTSV(path);
                     journal.logSystem("Loaded pricebook from: " + path);
                     return;
                 } catch (Exception e) {
@@ -117,7 +117,6 @@ public class RegisterWindow extends JFrame {
         dbInspectorItem.addActionListener(e -> openDatabaseInspector());
         toolsMenu.add(dbInspectorItem);
 
-        // ADDED: Reports menu item
         JMenuItem reportsItem = new JMenuItem("Sales Reports");
         reportsItem.setFont(new Font("SansSerif", Font.PLAIN, 12));
         reportsItem.addActionListener(e -> openReportsWindow());
@@ -140,16 +139,13 @@ public class RegisterWindow extends JFrame {
         setVisible(true);
     }
 
-    // ADDED: New method
     private void openReportsWindow() {
         new org.example.ui.ReportsWindow(database);
     }
 
     private void openDatabaseInspector() {
-        new org.example.DatabaseInspector(database); // CHANGED: Pass database
+        new org.example.DatabaseInspector(database);
     }
-
-    // ... [rest of buildTransactionView, buildTenderingView, createLargeButton methods stay the same] ...
 
     private JPanel buildTransactionView() {
         JPanel view = new JPanel(new BorderLayout(20, 20));
@@ -298,7 +294,7 @@ public class RegisterWindow extends JFrame {
         upc = upc.trim();
         if (upc.isEmpty()) return;
 
-        Product product = database.findProductByUPC(upc); // CHANGED
+        Product product = database.findProductByUPC(upc);
         journal.logScan(source, upc, product);
 
         if (product != null) {
@@ -414,7 +410,6 @@ public class RegisterWindow extends JFrame {
         }
     }
 
-    // MODIFIED: Added database save
     private void completeTender(String paymentType, double tendered, double change) {
         if (currentDiscount == null) return;
 
@@ -437,7 +432,7 @@ public class RegisterWindow extends JFrame {
                 currentDiscount
         );
 
-        // ADDED: Save transaction to database
+        // Save transaction to database
         try {
             long txId = database.saveTransaction(
                     transaction,
@@ -776,26 +771,33 @@ public class RegisterWindow extends JFrame {
             }
         }
 
-        TransactionManager.SuspendedTransaction suspended =
+        // CHANGED: Now returns SuspendedTransactionInfo instead of SuspendedTransaction
+        org.example.TransactionDatabase.SuspendedTransactionInfo suspended =
                 SuspendedTransactionsDialog.showDialog(this, transactionManager);
 
         if (suspended != null) {
-            Transaction resumedTransaction = transactionManager.resumeTransaction(suspended.getId());
+            // CHANGED: Use suspended.id() instead of suspended.getId()
+            Transaction resumedTransaction = transactionManager.resumeTransaction(suspended.id());
 
             if (resumedTransaction != null) {
                 transaction = resumedTransaction;
                 currentDiscount = null;
                 updateDisplay();
 
-                journal.logTransaction("RESUMED (ID: " + suspended.getId() + ")", transaction.getTotal());
+                journal.logTransaction("RESUMED (ID: " + suspended.id() + ")", transaction.getTotal());
 
                 JOptionPane.showMessageDialog(this,
                         String.format("Transaction #%d resumed\n\nItems: %d\nTotal: $%.2f",
-                                suspended.getId(),
+                                suspended.id(),
                                 transaction.getItemCount(),
                                 transaction.getTotal()),
                         "Transaction Resumed",
                         JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this,
+                        "Failed to resume transaction #" + suspended.id(),
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE);
             }
         }
     }
