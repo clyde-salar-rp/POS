@@ -2,6 +2,7 @@ package org.example;
 
 import org.example.model.Product;
 import org.example.model.Transaction;
+import org.example.service.DiscountService;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -18,6 +19,12 @@ public class ReceiptPrinter {
 
     public String generateReceipt(Transaction transaction, String paymentType,
                                   double tendered, double change) {
+        return generateReceipt(transaction, paymentType, tendered, change, null);
+    }
+
+    public String generateReceipt(Transaction transaction, String paymentType,
+                                  double tendered, double change,
+                                  DiscountService.DiscountResponse discountInfo) {
         StringBuilder receipt = new StringBuilder();
         LocalDateTime now = LocalDateTime.now();
 
@@ -58,16 +65,81 @@ public class ReceiptPrinter {
 
         receipt.append(line()).append("\n");
 
-        // Totals
-        double subtotal = transaction.getSubtotal();
-        double tax = transaction.getTax();
-        double total = transaction.getTotal();
+        // Calculate values
+        double originalSubtotal;
+        double finalSubtotal;
+        double totalDiscount = 0.0;
+        double tax;
+        double total;
 
-        receipt.append(String.format("%26s %15.2f\n", "SUBTOTAL:", subtotal));
+        if (discountInfo != null && discountInfo.totalDiscount > 0) {
+            // With discounts
+            originalSubtotal = discountInfo.subtotal;
+            totalDiscount = discountInfo.totalDiscount;
+            finalSubtotal = originalSubtotal - totalDiscount;
+            tax = discountInfo.tax;
+            total = discountInfo.total;
+        } else {
+            // No discounts - use transaction values
+            originalSubtotal = transaction.getSubtotal();
+            finalSubtotal = originalSubtotal;
+            tax = transaction.getTax();
+            total = transaction.getTotal();
+        }
+
+        // Original subtotal
+        receipt.append(String.format("%26s %15.2f\n", "SUBTOTAL:", originalSubtotal));
+
+        // Show discounts if any
+        if (discountInfo != null && discountInfo.appliedDiscounts != null
+                && !discountInfo.appliedDiscounts.isEmpty()) {
+
+            receipt.append("\n");
+            receipt.append(centerText("*** DISCOUNTS APPLIED ***")).append("\n");
+            receipt.append(line()).append("\n");
+
+            // Each discount
+            for (DiscountService.DiscountResponse.AppliedDiscount discount :
+                    discountInfo.appliedDiscounts) {
+
+                String discDesc = truncate(discount.description, 26);
+                receipt.append(String.format("%26s -%14.2f\n",
+                        discDesc + ":", discount.amount));
+
+                // Show affected items (optional - can remove if too verbose)
+                if (discount.affectedItems != null && !discount.affectedItems.isEmpty()) {
+                    for (String item : discount.affectedItems) {
+                        String itemDesc = truncate(item, 38);
+                        receipt.append(String.format("  * %s\n", itemDesc));
+                    }
+                }
+            }
+
+            receipt.append(line()).append("\n");
+            receipt.append(String.format("%26s -%14.2f\n",
+                    "TOTAL SAVINGS:", totalDiscount));
+            receipt.append(line()).append("\n");
+
+            // Discounted subtotal
+            receipt.append(String.format("%26s %15.2f\n",
+                    "SUBTOTAL AFTER DISC:", finalSubtotal));
+        }
+
+        // Tax (calculated on discounted amount)
         receipt.append(String.format("%26s %15.2f\n", "TAX (7%):", tax));
         receipt.append(doubleLine()).append("\n");
+
+        // Final total
         receipt.append(String.format("%26s %15.2f\n", "TOTAL:", total));
         receipt.append(doubleLine()).append("\n");
+
+        // Savings callout (if significant)
+        if (totalDiscount > 0) {
+            receipt.append("\n");
+            receipt.append(centerText(String.format("YOU SAVED $%.2f TODAY!", totalDiscount)))
+                    .append("\n");
+            receipt.append(line()).append("\n");
+        }
 
         // Payment
         receipt.append(String.format("%26s %15s\n", "PAYMENT TYPE:", paymentType));

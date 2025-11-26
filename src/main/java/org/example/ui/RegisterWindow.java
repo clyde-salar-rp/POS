@@ -666,6 +666,7 @@ public class RegisterWindow extends JFrame {
         }
     }
 
+    // Replace the completeTender method in RegisterWindow.java with this:
     private void completeTender(String paymentType, double tendered, double change) {
         if (currentDiscount == null) return;
 
@@ -680,8 +681,14 @@ public class RegisterWindow extends JFrame {
             journal.logSystem(String.format("Total discount: $%.2f", discount));
         }
 
-        // Print receipt to virtual journal and get receipt text
-        String receiptText = journal.printReceipt(transaction, paymentType, tendered, change);
+        // Print receipt to virtual journal with discount info and get receipt text
+        String receiptText = journal.printReceipt(
+                transaction,
+                paymentType,
+                tendered,
+                change,
+                currentDiscount  // Pass discount info to receipt
+        );
 
         // Show change dialog if applicable
         if (change > 0) {
@@ -714,7 +721,10 @@ public class RegisterWindow extends JFrame {
 
     private void completeTransaction() {
         if(transaction.getItemCount() > 0) {
-            journal.logTransaction("COMPLETED", transaction.getTotal());
+            // Log the discounted total if available, otherwise use regular total
+            double finalTotal = (currentDiscount != null)
+            ? currentDiscount.total : transaction.getTotal();
+            journal.logTransaction("COMPLETED", finalTotal);
         }
         currentDiscount = null;
         transaction.clear();

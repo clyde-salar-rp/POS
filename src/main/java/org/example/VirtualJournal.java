@@ -2,6 +2,7 @@ package org.example;
 
 import org.example.model.Product;
 import org.example.model.Transaction;
+import org.example.service.DiscountService;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -46,7 +47,8 @@ public class VirtualJournal {
                 product.getDescription(), oldQty, newQty);
     }
 
-    public void logTender(String paymentType, double subtotal, double tax, double total, double tendered, double change) {
+    public void logTender(String paymentType, double subtotal, double tax, double total,
+                          double tendered, double change) {
         String timestamp = LocalDateTime.now().format(TIME_FORMAT);
         System.out.printf("[%s] TENDER | Type: %s | Subtotal: $%.2f | Tax: $%.2f | Total: $%.2f | Tendered: $%.2f | Change: $%.2f%n",
                 timestamp, paymentType, subtotal, tax, total, tendered, change);
@@ -63,15 +65,24 @@ public class VirtualJournal {
         System.out.printf("[%s] SYSTEM | %s%n", timestamp, message);
     }
 
+    // Original method for backward compatibility
     public String printReceipt(Transaction transaction, String paymentType,
                                double tendered, double change) {
+        return printReceipt(transaction, paymentType, tendered, change, null);
+    }
+
+    // New method with discount support
+    public String printReceipt(Transaction transaction, String paymentType,
+                               double tendered, double change,
+                               DiscountService.DiscountResponse discountInfo) {
         String timestamp = LocalDateTime.now().format(TIME_FORMAT);
         System.out.printf("[%s] RECEIPT PRINTING%n", timestamp);
         System.out.println("\n" + "=".repeat(50));
         System.out.println("RECEIPT OUTPUT:");
         System.out.println("=".repeat(50));
 
-        String receipt = receiptPrinter.generateReceipt(transaction, paymentType, tendered, change);
+        String receipt = receiptPrinter.generateReceipt(
+                transaction, paymentType, tendered, change, discountInfo);
         System.out.println(receipt);
 
         System.out.println("=".repeat(50));
