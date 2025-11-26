@@ -15,13 +15,36 @@ public class ScanGunListener implements KeyEventDispatcher {
     private boolean scannerDetected = false;
     private static final long MAX_DELAY_MS = 25; // Fast typing threshold
 
+    // **NEW: Enable/disable flag**
+    private boolean enabled = true;
+
     public ScanGunListener(BiConsumer<String, String> scanCallback, JTextField manualField) {
         this.scanCallback = scanCallback;
         this.manualField = manualField;
     }
 
+    /**
+     * Enable or disable the scan gun listener
+     */
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+        if (!enabled) {
+            // Clear any pending scan data when disabled
+            reset();
+        }
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
+        // **NEW: Return early if disabled**
+        if (!enabled) {
+            return false;
+        }
+
         if (e.getID() != KeyEvent.KEY_TYPED) {
             return false;
         }

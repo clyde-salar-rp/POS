@@ -212,7 +212,7 @@ public class RegisterWindow extends JFrame {
         // Read-only items panel with "PAYMENT IN PROGRESS" header
         JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         headerPanel.setBackground(WARNING_COLOR);
-        JLabel headerLabel = new JLabel("PAYMENT IN PROGRESS");
+        JLabel headerLabel = new JLabel("PAYMENT IN PROGRESS - SCANNING DISABLED");
         headerLabel.setFont(new Font("SansSerif", Font.BOLD, 20));
         headerLabel.setForeground(Color.WHITE);
         headerPanel.add(headerLabel);
@@ -280,7 +280,10 @@ public class RegisterWindow extends JFrame {
         }
 
         currentMode = RegisterMode.TENDERING;
-        journal.logSystem("Entered TENDERING mode");
+        journal.logSystem("Entered TENDERING mode - scan gun DISABLED");
+
+        // **FIX: Disable scan gun listener**
+        scanGunListener.setEnabled(false);
 
         // Calculate discounts before entering tendering mode
         if (!calculateDiscount()) {
@@ -292,15 +295,18 @@ public class RegisterWindow extends JFrame {
 
         // Switch to tendering view
         cardLayout.show(cardPanel, "TENDERING");
-
     }
 
     private void cancelTendering() {
         currentMode = RegisterMode.TRANSACTION;
         currentDiscount = null;
+
+        // **FIX: Re-enable scan gun listener**
+        scanGunListener.setEnabled(true);
+        journal.logSystem("Cancelled tendering - scan gun RE-ENABLED");
+
         updateDisplay(); // Reset to regular totals
         cardLayout.show(cardPanel, "TRANSACTION");
-        journal.logSystem("Cancelled tendering - returned to TRANSACTION mode");
     }
 
     private void updateTenderingView() {
@@ -349,6 +355,12 @@ public class RegisterWindow extends JFrame {
     }
 
     private void processUPC(String upc, String source) {
+        // **FIX: Check if in tendering mode**
+        if (currentMode == RegisterMode.TENDERING) {
+            journal.logSystem("SCAN BLOCKED - Currently in tendering mode");
+            return;
+        }
+
         upc = upc.trim();
         if (upc.isEmpty()) return;
 
@@ -366,6 +378,11 @@ public class RegisterWindow extends JFrame {
     }
 
     private void processQuickKey(Product product) {
+        // Quick keys only work in transaction mode
+        if (currentMode == RegisterMode.TENDERING) {
+            return;
+        }
+
         journal.logQuickKey(product.getDescription(), product.getPrice());
         transaction.addItem(product);
         updateDisplay();
@@ -678,8 +695,10 @@ public class RegisterWindow extends JFrame {
 
         completeTransaction();
 
-        // Return to transaction mode
+        // Return to transaction mode and re-enable scan gun
         currentMode = RegisterMode.TRANSACTION;
+        scanGunListener.setEnabled(true);
+        journal.logSystem("Transaction completed - scan gun RE-ENABLED");
         cardLayout.show(cardPanel, "TRANSACTION");
     }
 
