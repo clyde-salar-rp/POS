@@ -61,7 +61,7 @@ public class ReportsWindow extends JFrame {
         styleButton(generateButton, PRIMARY_COLOR);
         generateButton.addActionListener(e -> generateReport());
 
-        JButton exportButton = new JButton("Export to CSV");
+        JButton exportButton = new JButton("Export");
         styleButton(exportButton, new Color(76, 175, 80));
         exportButton.addActionListener(e -> exportReport());
 

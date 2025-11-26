@@ -549,10 +549,6 @@ public class TransactionDatabase {
         return false;
     }
 
-    private String determineCategory(Product product) {
-        return determineCategory(product.getDescription());
-    }
-
     private String determineCategory(String description) {
         String desc = description.toUpperCase();
 
