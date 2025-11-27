@@ -1,5 +1,6 @@
 package org.example;
 
+import lombok.Getter;
 import org.example.config.VJConfig;
 import org.example.model.Product;
 import org.example.model.Transaction;
@@ -14,10 +15,10 @@ import java.net.*;
 public class VirtualJournalClient {
     private Socket socket;
     private PrintWriter writer;
+    @Getter
     private final VJConfig config;
     private final ReceiptPrinter receiptPrinter;
     private boolean connected = false;
-    private int connectionAttempts = 0;
 
     public VirtualJournalClient(ReceiptPrinter receiptPrinter) {
         this.config = new VJConfig();
@@ -25,13 +26,7 @@ public class VirtualJournalClient {
         config.displayConfig();
     }
 
-    public VirtualJournalClient(VJConfig config, ReceiptPrinter receiptPrinter) {
-        this.config = config;
-        this.receiptPrinter = receiptPrinter;
-        config.displayConfig();
-    }
-
-    public boolean connect() {
+    public void connect() {
         int maxAttempts = config.isRetryEnabled() ? config.getMaxRetryAttempts() : 1;
         int delaySeconds = config.getRetryDelaySeconds();
 
@@ -46,11 +41,10 @@ public class VirtualJournalClient {
                         new OutputStreamWriter(socket.getOutputStream()),
                         true);
                 connected = true;
-                connectionAttempts = attempt;
 
                 System.out.println("✓ Successfully connected to Virtual Journal Server");
                 logSystem("Register connected to Virtual Journal Server");
-                return true;
+                return;
 
             } catch (IOException e) {
                 System.err.println("✗ Connection attempt " + attempt + " failed: " + e.getMessage());
@@ -70,7 +64,6 @@ public class VirtualJournalClient {
         System.err.println("Failed to connect to VJ Server after " + maxAttempts + " attempts");
         System.err.println("Register will continue WITHOUT virtual journal logging");
         connected = false;
-        return false;
     }
 
     public void disconnect() {
@@ -194,7 +187,4 @@ public class VirtualJournalClient {
         return connected && socket != null && !socket.isClosed();
     }
 
-    public VJConfig getConfig() {
-        return config;
-    }
 }

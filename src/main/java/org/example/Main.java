@@ -17,7 +17,7 @@ public class Main {
         VirtualJournalClient vjClient = new VirtualJournalClient(receiptPrinter);
 
         // Try to connect in background (non-blocking)
-        new Thread(() -> vjClient.connect()).start();
+        new Thread(vjClient::connect).start();
 
         // Add shutdown hook to disconnect cleanly
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {

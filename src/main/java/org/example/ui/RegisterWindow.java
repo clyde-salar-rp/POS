@@ -1,7 +1,7 @@
 package org.example.ui;
 
 import org.example.TransactionDatabase;
-import org.example.VirtualJournal;
+//import org.example.VirtualJournal;
 import org.example.ReceiptPrinter;
 import org.example.VirtualJournalClient;
 import org.example.input.ScanGunListener;
@@ -37,8 +37,6 @@ public class RegisterWindow extends JFrame {
     private CardLayout cardLayout;
     private JPanel cardPanel;
 
-    private JPanel transactionView;
-    private JPanel tenderingView;
     private TenderPanel tenderPanel;
     private ItemsPanel readOnlyItemsPanel;
     private TotalPanel readOnlyTotalPanel;
@@ -46,8 +44,6 @@ public class RegisterWindow extends JFrame {
     private ScanPanel scanPanel;
     private ItemsPanel itemsPanel;
     private TotalPanel totalPanel;
-    private SuspendPanel suspendPanel;
-    private QuickKeysPanel quickKeysPanel;
     private ScanGunListener scanGunListener;
 
     private DiscountService.DiscountResponse currentDiscount;
@@ -138,8 +134,8 @@ public class RegisterWindow extends JFrame {
         cardPanel = new JPanel(cardLayout);
         cardPanel.setBackground(ACCENT_COLOR);
 
-        transactionView = buildTransactionView();
-        tenderingView = buildTenderingView();
+        JPanel transactionView = buildTransactionView();
+        JPanel tenderingView = buildTenderingView();
 
         cardPanel.add(transactionView, "TRANSACTION");
         cardPanel.add(tenderingView, "TENDERING");
@@ -182,7 +178,7 @@ public class RegisterWindow extends JFrame {
         rightPanel.setBackground(ACCENT_COLOR);
         rightPanel.setPreferredSize(new Dimension(500, 0));
 
-        suspendPanel = new SuspendPanel(
+        SuspendPanel suspendPanel = new SuspendPanel(
                 this::suspendTransaction,
                 this::resumeTransaction
         );
@@ -193,7 +189,7 @@ public class RegisterWindow extends JFrame {
                 this::voidTransaction
         );
 
-        quickKeysPanel = new QuickKeysPanel(this::processQuickKey);
+        QuickKeysPanel quickKeysPanel = new QuickKeysPanel(this::processQuickKey);
 
         JButton paymentButton = createLargeButton("PROCEED TO PAYMENT", SUCCESS_COLOR, this::enterTenderingMode);
 
