@@ -10,7 +10,20 @@ public class Main {
         } catch (Exception e) {
             // Use default
         }
+        // Initialize Receipt Printer
+        ReceiptPrinter receiptPrinter = new ReceiptPrinter();
 
-        SwingUtilities.invokeLater(RegisterWindow::new);
+        // Initialize VJ Client
+        VirtualJournalClient vjClient = new VirtualJournalClient(receiptPrinter);
+
+        // Try to connect in background (non-blocking)
+        new Thread(() -> vjClient.connect()).start();
+
+        // Add shutdown hook to disconnect cleanly
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Shutting down...");
+            vjClient.disconnect();
+        }));
+        SwingUtilities.invokeLater(() -> new RegisterWindow(vjClient));
     }
 }

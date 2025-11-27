@@ -3,6 +3,7 @@ package org.example.ui;
 import org.example.TransactionDatabase;
 import org.example.VirtualJournal;
 import org.example.ReceiptPrinter;
+import org.example.VirtualJournalClient;
 import org.example.input.ScanGunListener;
 import org.example.model.Product;
 import org.example.model.Transaction;
@@ -10,6 +11,7 @@ import org.example.model.TransactionManager;
 import org.example.service.DiscountService;
 import org.example.ui.components.*;
 import org.example.ui.dialogs.SuspendedTransactionsDialog;
+import org.example.ui.dialogs.VJConfigDialog;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -19,7 +21,8 @@ import java.sql.SQLException;
 
 public class RegisterWindow extends JFrame {
     private final TransactionDatabase database;
-    private final VirtualJournal journal;
+    private final VirtualJournalClient journal;
+
     private final ReceiptPrinter receiptPrinter;
     private final TransactionManager transactionManager;
     private final DiscountService discountService;
@@ -54,10 +57,10 @@ public class RegisterWindow extends JFrame {
     private static final Color SUCCESS_COLOR = new Color(76, 175, 80);
     private static final Color WARNING_COLOR = new Color(255, 152, 0);
 
-    public RegisterWindow() {
+    public RegisterWindow(VirtualJournalClient vjClient) {
         this.database = new TransactionDatabase();
         this.receiptPrinter = new ReceiptPrinter();
-        this.journal = new VirtualJournal(receiptPrinter);
+        this.journal = vjClient;
         this.transactionManager = new TransactionManager(database); // CHANGED: Pass database
         this.discountService = new DiscountService();
         this.transaction = new Transaction();
@@ -74,6 +77,7 @@ public class RegisterWindow extends JFrame {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             journal.logSystem("Shutting down - closing database connection");
             database.close();
+            journal.disconnect();
         }));
     }
 
@@ -122,6 +126,11 @@ public class RegisterWindow extends JFrame {
         reportsItem.addActionListener(e -> openReportsWindow());
         toolsMenu.add(reportsItem);
 
+        JMenuItem vjConfigItem = new JMenuItem("VJ Server Settings");
+        vjConfigItem.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        vjConfigItem.addActionListener(e -> openVJConfig());
+        toolsMenu.add(vjConfigItem);
+
         menuBar.add(toolsMenu);
         setJMenuBar(menuBar);
 
@@ -137,6 +146,10 @@ public class RegisterWindow extends JFrame {
 
         add(cardPanel);
         setVisible(true);
+    }
+
+    private void openVJConfig() {
+        VJConfigDialog.showDialog(this, journal.getConfig());
     }
 
     private void openReportsWindow() {
