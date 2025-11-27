@@ -59,6 +59,7 @@ public class ItemsPanel extends JPanel {
         header.setForeground(Color.WHITE);
         header.setPreferredSize(new Dimension(header.getPreferredSize().width, 45));
         header.setBorder(BorderFactory.createEmptyBorder());
+        header.setReorderingAllowed(false); // Disable column dragging
 
         // Cell alignment
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
