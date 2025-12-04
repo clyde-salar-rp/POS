@@ -98,7 +98,7 @@ public class RegisterWindow extends JFrame {
     }
 
     private void setupUI() {
-        setTitle("Modern POS Register");
+        setTitle("Mock POS Register");
         setSize(1400, 850);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
