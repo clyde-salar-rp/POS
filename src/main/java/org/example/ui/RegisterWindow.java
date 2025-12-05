@@ -192,6 +192,11 @@ public class RegisterWindow extends JFrame {
         QuickKeysPanel quickKeysPanel = new QuickKeysPanel(this::processQuickKey);
 
         JButton paymentButton = createLargeButton("PROCEED TO PAYMENT", SUCCESS_COLOR, this::enterTenderingMode);
+        JPanel paymentButtonPanel = new JPanel(new BorderLayout());
+        paymentButtonPanel.setBackground(ACCENT_COLOR);
+        paymentButtonPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 70));
+        paymentButtonPanel.add(paymentButton, BorderLayout.CENTER);
+
 
         suspendPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
         transActionPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
@@ -204,7 +209,7 @@ public class RegisterWindow extends JFrame {
         rightPanel.add(Box.createRigidArea(new Dimension(0, 15)));
         rightPanel.add(quickKeysPanel);
         rightPanel.add(Box.createRigidArea(new Dimension(0, 15)));
-        rightPanel.add(paymentButton);
+        rightPanel.add(paymentButtonPanel);
         rightPanel.add(Box.createVerticalGlue());
 
         view.add(leftPanel, BorderLayout.CENTER);
