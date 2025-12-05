@@ -17,9 +17,8 @@ public class ReceiptPrinter {
 
     private int receiptNumber = 1;
 
-    // ADDED: Getter for receipt number
     public int getReceiptNumber() {
-        return receiptNumber - 1; // Return current number (before increment)
+        return receiptNumber - 1;
     }
 
     public String generateReceipt(Transaction transaction, String paymentType,

@@ -104,7 +104,7 @@ public class VirtualJournalClient {
         System.out.println(formattedMessage);
 
         if (!connected || writer == null) {
-            return; // Silently drop if not connected
+            return;
         }
 
         try {

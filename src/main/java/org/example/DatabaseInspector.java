@@ -11,9 +11,8 @@ public class DatabaseInspector extends JFrame {
     private final JTable table;
     private final DefaultTableModel tableModel;
     private final JLabel statusLabel;
-    private final TransactionDatabase database; // CHANGED
+    private final TransactionDatabase database;
 
-    // CHANGED: Constructor now accepts TransactionDatabase
     public DatabaseInspector(TransactionDatabase database) {
         this.database = database;
 
@@ -72,7 +71,6 @@ public class DatabaseInspector extends JFrame {
         setVisible(true);
     }
 
-    // CHANGED: Now uses database.searchProducts()
     private void loadAllProducts() {
         tableModel.setRowCount(0);
 
@@ -90,7 +88,6 @@ public class DatabaseInspector extends JFrame {
         statusLabel.setText("Loaded " + products.size() + " products (max 1000 shown)");
     }
 
-    // CHANGED: Now uses database.searchProducts()
     private void searchProducts(String keyword) {
         if (keyword.trim().isEmpty()) {
             loadAllProducts();
@@ -128,7 +125,6 @@ public class DatabaseInspector extends JFrame {
                 JOptionPane.INFORMATION_MESSAGE);
     }
 
-    // ADDED: Category determination
     private String determineCategory(String description) {
         String desc = description.toUpperCase();
 

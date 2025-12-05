@@ -1,7 +1,6 @@
 package org.example.ui;
 
 import org.example.TransactionDatabase;
-//import org.example.VirtualJournal;
 import org.example.ReceiptPrinter;
 import org.example.VirtualJournalClient;
 import org.example.input.ScanGunListener;
@@ -57,7 +56,7 @@ public class RegisterWindow extends JFrame {
         this.database = new TransactionDatabase();
         this.receiptPrinter = new ReceiptPrinter();
         this.journal = vjClient;
-        this.transactionManager = new TransactionManager(database); // CHANGED: Pass database
+        this.transactionManager = new TransactionManager(database);
         this.discountService = new DiscountService();
         this.transaction = new Transaction();
 
