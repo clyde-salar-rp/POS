@@ -363,7 +363,7 @@ public class RegisterWindow extends JFrame {
 
             System.out.println("  → Beverage count: " + beverageCount);
 
-            if (beverageCount == 1) {
+            if (beverageCount % 2 == 1) {
                 // INTERACTIVE PROMO: Offer to add 1 more beverage
                 customerDisplay.showClickablePromo(
                         "⚡ Add 1 More Beverage for BOGO! ⚡",
