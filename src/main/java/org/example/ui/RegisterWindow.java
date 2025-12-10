@@ -871,7 +871,7 @@ public class RegisterWindow extends JFrame {
 
         Object[] message = {
                 "Item: " + product.getDescription(),
-                "Enter new quantity (max 7 digits):",
+                "Enter new quantity:",
                 qtyField
         };
 
@@ -897,7 +897,7 @@ public class RegisterWindow extends JFrame {
                     // Update customer display
                     customerDisplay.updateTransaction(transaction);
                 } else {
-                    JOptionPane.showMessageDialog(this, "Quantity must be positive");
+                    JOptionPane.showMessageDialog(this, "Invalid quantity");
                 }
             } catch (NumberFormatException e) {
                 JOptionPane.showMessageDialog(this, "Invalid quantity");
@@ -906,9 +906,36 @@ public class RegisterWindow extends JFrame {
     }
 
     private void voidTransaction() {
-        if (transaction.getItemCount() > 0) {
-            journal.logTransaction("VOIDED", transaction.getTotal());
+        // Check if there are items to void
+        if (transaction.getItemCount() == 0) {
+            JOptionPane.showMessageDialog(this,
+                    "No transaction to void",
+                    "Empty Transaction",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
         }
+
+        // Show confirmation dialog with transaction details
+        int confirm = JOptionPane.showConfirmDialog(this,
+                String.format("Are you sure you want to VOID this entire transaction?\n\n" +
+                                "Items: %d\n" +
+                                "Total: $%.2f\n\n" +
+                                "This action cannot be undone.",
+                        transaction.getItemCount(),
+                        currentDiscount != null ? currentDiscount.total : transaction.getTotal()),
+                "Confirm Void Transaction",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+
+        // Only void if user confirms
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        // Log the void
+        journal.logTransaction("VOIDED", transaction.getTotal());
+
+        // Clear transaction
         currentDiscount = null;
         transaction.clear();
         updateDisplay();
@@ -916,6 +943,12 @@ public class RegisterWindow extends JFrame {
 
         // Reset customer display
         customerDisplay.showAttractScreen();
+
+        // Optional: Show confirmation that void was successful
+        JOptionPane.showMessageDialog(this,
+                "Transaction has been voided",
+                "Transaction Voided",
+                JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void completeTransaction() {
