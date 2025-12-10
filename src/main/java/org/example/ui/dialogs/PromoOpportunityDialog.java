@@ -16,7 +16,7 @@ public class PromoOpportunityDialog extends JDialog {
     private boolean accepted = false;
 
     public PromoOpportunityDialog(Frame owner, PromoChecker.PromoOpportunity opportunity) {
-        super(owner, "🎉 Promotion Available!", true);
+        super(owner, "Promotion Available!", true);
         setSize(550, 450);
         setLocationRelativeTo(owner);
         setResizable(true);
@@ -34,7 +34,7 @@ public class PromoOpportunityDialog extends JDialog {
                 new EmptyBorder(15, 15, 15, 15)
         ));
 
-        JLabel iconLabel = new JLabel("🎁");
+        JLabel iconLabel = new JLabel("");
         iconLabel.setFont(new Font("SansSerif", Font.PLAIN, 48));
 
         JLabel headerLabel = new JLabel(opportunity.getPromoName());
@@ -107,7 +107,7 @@ public class PromoOpportunityDialog extends JDialog {
             }
         } else {
             // No items needed - already eligible
-            JLabel eligibleLabel = new JLabel("✓ You're already eligible for this discount!");
+            JLabel eligibleLabel = new JLabel("You're already eligible for this discount!");
             eligibleLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
             eligibleLabel.setForeground(SUCCESS_COLOR);
             eligibleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);

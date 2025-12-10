@@ -8,9 +8,7 @@ import org.example.model.Product;
 import org.example.model.Transaction;
 import org.example.model.TransactionManager;
 import org.example.service.DiscountService;
-import org.example.service.PromoChecker;
 import org.example.ui.components.*;
-import org.example.ui.dialogs.PromoOpportunityDialog;
 import org.example.ui.dialogs.SuspendedTransactionsDialog;
 import org.example.ui.dialogs.VJConfigDialog;
 
@@ -23,12 +21,11 @@ import java.sql.SQLException;
 public class RegisterWindow extends JFrame {
     private final TransactionDatabase database;
     private final VirtualJournalClient journal;
-
     private final ReceiptPrinter receiptPrinter;
     private final TransactionManager transactionManager;
     private final DiscountService discountService;
-    private final PromoChecker promoChecker;
     private Transaction transaction;
+    private CustomerDisplay customerDisplay;
 
     private enum RegisterMode {
         TRANSACTION,
@@ -61,13 +58,16 @@ public class RegisterWindow extends JFrame {
         this.journal = vjClient;
         this.transactionManager = new TransactionManager(database);
         this.discountService = new DiscountService();
-        this.promoChecker = new PromoChecker();
         this.transaction = new Transaction();
 
         loadPricebook();
         setupUI();
         setupScanGun();
         setupShutdownHook();
+
+        // Initialize customer display
+        customerDisplay = new CustomerDisplay();
+        customerDisplay.showAttractScreen();
 
         journal.logSystem("Register initialized with " + database.getProductCount() + " products");
     }
@@ -77,6 +77,11 @@ public class RegisterWindow extends JFrame {
             journal.logSystem("Shutting down - closing database connection");
             database.close();
             journal.disconnect();
+
+            // Close customer display
+            if (customerDisplay != null) {
+                customerDisplay.dispose();
+            }
         }));
     }
 
@@ -318,12 +323,91 @@ public class RegisterWindow extends JFrame {
             transaction.addItem(product);
             updateDisplay();
 
-            // Check for promotion opportunities
-            checkAndOfferPromotion(product);
+            // Update customer display
+            customerDisplay.updateTransaction(transaction);
+
+            // Check if this item triggers a promo message
+            checkForPromoMessages(product);
         } else {
             JOptionPane.showMessageDialog(this,
                     "Item not found: " + upc,
                     "Not Found", JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+    private void checkForPromoMessages(Product product) {
+        String desc = product.getDescription().toUpperCase();
+
+        System.out.println("🔍 Checking promos for: " + product.getDescription());
+
+        // Check for BOGO beverages
+        if (desc.contains("COKE") || desc.contains("PEPSI") ||
+                desc.contains("MONSTER") || desc.contains("RED BULL") ||
+                desc.contains("SPRITE") || desc.contains("GATORADE") ||
+                desc.contains("WATER") || desc.contains("ENERGY")) {
+
+            long beverageCount = transaction.getItems().stream()
+                    .filter(p -> {
+                        String d = p.getDescription().toUpperCase();
+                        return d.contains("COKE") || d.contains("PEPSI") ||
+                                d.contains("MONSTER") || d.contains("RED BULL") ||
+                                d.contains("SPRITE") || d.contains("GATORADE") ||
+                                d.contains("WATER") || d.contains("ENERGY");
+                    })
+                    .mapToInt(Product::getQuantity)
+                    .sum();
+
+            System.out.println("  → Beverage count: " + beverageCount);
+
+            if (beverageCount == 1) {
+                // INTERACTIVE PROMO: Ask cashier if customer wants another beverage
+                customerDisplay.showPromo("Add 1 More Beverage for BOGO!", 4000);
+
+                // Suggest adding another beverage
+                java.util.List<Product> suggestedItems = new java.util.ArrayList<>();
+                suggestedItems.add(new Product(product.getUpc(), product.getDescription(), product.getPrice()));
+
+
+
+            } else if (beverageCount >= 2) {
+                System.out.println("  ✓ BOGO Promo qualified!");
+                customerDisplay.showPromo(
+                        "🎉 Buy 1 Get 1 on Beverages - You Qualify! 🎉", 5000);
+            }
+        }
+
+        // Check for food discount (informational only)
+        if (desc.contains("PIZZA") || desc.contains("HOT DOG") ||
+                desc.contains("BURGER") || desc.contains("DONUT") ||
+                desc.contains("SANDWICH") || desc.contains("TAQUITO") ||
+                desc.contains("FOOD")) {
+            System.out.println("  ✓ Food discount promo triggered!");
+            customerDisplay.showPromo(
+                    "💰 10% OFF All Food Items! 💰", 4000);
+        }
+
+        // Check for Monster promotion (INTERACTIVE)
+        if (desc.contains("MONSTER")) {
+            long monsterCount = transaction.getItems().stream()
+                    .filter(p -> p.getDescription().toUpperCase().contains("MONSTER"))
+                    .mapToInt(Product::getQuantity)
+                    .sum();
+
+            System.out.println("  → Monster count: " + monsterCount);
+
+            if (monsterCount == 1) {
+                customerDisplay.showPromo("Buy 3 Monsters, Get 1 Free!", 4000);
+            } else if (monsterCount == 2) {
+                // INTERACTIVE: Suggest adding 1 more Monster
+                customerDisplay.showPromo("⚡ Add 1 More Monster for Free Item! ⚡", 4000);
+
+                java.util.List<Product> suggestedItems = new java.util.ArrayList<>();
+                suggestedItems.add(new Product(product.getUpc(), product.getDescription(), product.getPrice()));
+            } else if (monsterCount >= 3) {
+                System.out.println("  ✓ Monster BOGO promo qualified!");
+                customerDisplay.showPromo(
+                        "🎁 Buy 3 Monsters Get 1 Free - You Qualify! 🎁", 5000);
+            }
         }
     }
 
@@ -336,8 +420,9 @@ public class RegisterWindow extends JFrame {
         transaction.addItem(product);
         updateDisplay();
 
-        // Check for promotion opportunities
-        checkAndOfferPromotion(product);
+        // Update customer display
+        customerDisplay.updateTransaction(transaction);
+        checkForPromoMessages(product);
     }
 
     private void enterTenderingMode() {
@@ -355,6 +440,9 @@ public class RegisterWindow extends JFrame {
             return;
         }
 
+        // Update customer display with discount info
+        customerDisplay.updateWithDiscount(transaction, currentDiscount);
+
         updateTenderingView();
         cardLayout.show(cardPanel, "TENDERING");
     }
@@ -367,6 +455,11 @@ public class RegisterWindow extends JFrame {
         journal.logSystem("Cancelled tendering - scan gun RE-ENABLED");
 
         updateDisplay();
+
+        // IMPORTANT: Force reset customer display to remove ALL discount info
+        customerDisplay.hidePromo(); // Hide the orange "SAVED $XX" banner
+        customerDisplay.updateTransaction(transaction); // Reset to normal view
+
         cardLayout.show(cardPanel, "TRANSACTION");
     }
 
@@ -480,6 +573,9 @@ public class RegisterWindow extends JFrame {
         }
 
         org.example.ui.dialogs.ReceiptDialog.showReceipt(this, receiptText);
+
+        // Show thank you on customer display
+        customerDisplay.showThankYou(total, discount);
 
         completeTransaction();
 
@@ -623,6 +719,9 @@ public class RegisterWindow extends JFrame {
             journal.logVoidItem(product);
             transaction.voidItem(selectedRow);
             updateDisplay();
+
+            // Update customer display
+            customerDisplay.updateTransaction(transaction);
         }
     }
 
@@ -721,6 +820,9 @@ public class RegisterWindow extends JFrame {
                     transaction.changeQuantity(selectedRow, newQty);
                     journal.logQuantityChange(product, oldQty, newQty);
                     updateDisplay();
+
+                    // Update customer display
+                    customerDisplay.updateTransaction(transaction);
                 } else {
                     JOptionPane.showMessageDialog(this, "Quantity must be positive");
                 }
@@ -738,6 +840,9 @@ public class RegisterWindow extends JFrame {
         transaction.clear();
         updateDisplay();
         scanGunListener.reset();
+
+        // Reset customer display
+        customerDisplay.showAttractScreen();
     }
 
     private void completeTransaction() {
@@ -778,6 +883,9 @@ public class RegisterWindow extends JFrame {
             transaction.clear();
             updateDisplay();
             scanGunListener.reset();
+
+            // Reset customer display
+            customerDisplay.showAttractScreen();
         }
     }
 
@@ -804,6 +912,9 @@ public class RegisterWindow extends JFrame {
                 transaction = resumedTransaction;
                 currentDiscount = null;
                 updateDisplay();
+
+                // Update customer display
+                customerDisplay.updateTransaction(transaction);
 
                 journal.logTransaction("RESUMED (ID: " + suspended.id() + ")", transaction.getTotal());
 
@@ -840,51 +951,6 @@ public class RegisterWindow extends JFrame {
                     currentDiscount.total,
                     currentDiscount.totalDiscount
             );
-        }
-    }
-
-    /**
-     * Check if scanned product creates a promotion opportunity
-     * and offer to add required items automatically
-     */
-    private void checkAndOfferPromotion(Product scannedProduct) {
-        PromoChecker.PromoOpportunity opportunity =
-                promoChecker.checkForPromoOpportunity(scannedProduct, transaction);
-
-        if (opportunity != null) {
-            journal.logSystem("Promotion opportunity detected: " + opportunity.getPromoName());
-
-            // Show the promotion dialog
-            boolean accepted = PromoOpportunityDialog.showPromoDialog(this, opportunity);
-
-            if (accepted) {
-                journal.logSystem("User accepted promotion: " + opportunity.getPromoName());
-
-                // Add the required items
-                for (PromoChecker.ItemToAdd itemToAdd : opportunity.getItemsNeeded()) {
-                    for (int i = 0; i < itemToAdd.getQuantity(); i++) {
-                        transaction.addItem(itemToAdd.getProduct());
-                        journal.logSystem(String.format(
-                                "Auto-added for promo: %s",
-                                itemToAdd.getProduct().getDescription()
-                        ));
-                    }
-                }
-
-                // Update display with new items
-                updateDisplay();
-
-                // Show confirmation
-                if (!opportunity.getItemsNeeded().isEmpty()) {
-                    JOptionPane.showMessageDialog(this,
-                            String.format("Items added! You'll save $%.2f at checkout.",
-                                    opportunity.getPotentialSavings()),
-                            "Promotion Applied",
-                            JOptionPane.INFORMATION_MESSAGE);
-                }
-            } else {
-                journal.logSystem("User declined promotion: " + opportunity.getPromoName());
-            }
         }
     }
 }

@@ -113,7 +113,7 @@ public class PromoChecker {
 
             return new PromoOpportunity(
                     "Polar Pop Buy 2 Get 1 Free",
-                    String.format("Add %d more Polar Pop to get 1 FREE! 🥤", needed),
+                    String.format("Add %d more Polar Pop to get 1 FREE!", needed),
                     savings,
                     itemsNeeded,
                     "BUY_X_GET_Y"
@@ -136,7 +136,7 @@ public class PromoChecker {
         if (savings > 0) {
             return new PromoOpportunity(
                     "20% Off Food",
-                    "You're getting 20% off all Food items! 🌭🍕",
+                    "You're getting 20% off all Food items!",
                     savings,
                     new ArrayList<>(), // No items needed - already eligible
                     "PERCENT_OFF"
@@ -172,7 +172,7 @@ public class PromoChecker {
 
             return new PromoOpportunity(
                     "BOGO Beverages",
-                    "Buy One Get One FREE on all Beverages! Add 1 more to activate. 🥤",
+                    "Buy One Get One FREE on all Beverages! Add 1 more to activate.",
                     cheapestBeveragePrice,
                     itemsNeeded,
                     "BOGO"
