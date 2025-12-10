@@ -391,9 +391,9 @@ public class CustomerDisplay extends JFrame {
                         "  🛒 WELCOME! 🛒\n\n" +
                         "  Scan items\n\n" +
                         "  TODAY'S DEALS:\n" +
-                        "  • BOGO Drinks\n" +
-                        "  • 10% off Food\n" +
-                        "  • Buy 3 Monsters\n" +
+                        "  • BOGO Beverages\n" +
+                        "  • 5% off Food\n" +
+                        "  • Buy 2 Polar Pop\n" +
                         "    Get 1 Free!\n\n"
         );
         totalLabel.setText("$0.00");

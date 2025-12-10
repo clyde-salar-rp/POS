@@ -446,27 +446,31 @@ public class RegisterWindow extends JFrame {
 
             System.out.println("  → Monster count: " + monsterCount);
 
-            if (monsterCount == 1) {
-                customerDisplay.showPromo("Buy 3 Monsters, Get 1 Free!", 4000);
-            } else if (monsterCount == 2) {
-                // INTERACTIVE: Suggest adding 1 more Monster
+            // BOGO means: Buy in pairs (2, 4, 6, etc.) to get discount
+            // If customer has odd number (1, 3, 5, etc.), offer to complete the pair
+            if (monsterCount % 2 == 1) {
+                // Odd number - need 1 more to complete BOGO pair
+                int needMore = 1;
+
                 customerDisplay.showClickablePromo(
-                        "⚡ Add 1 More Monster for Free Item! ⚡",
+                        "⚡ Add " + needMore + " More Monster for BOGO! Get 1 FREE! ⚡",
                         (accepted) -> {
                             if (accepted) {
-                                transaction.addItem(product);
+                                // Customer clicked - auto-add the remaining Monster(s)
+                                transaction.addItem(product, needMore);
                                 updateDisplay();
                                 customerDisplay.updateTransaction(transaction);
-                                journal.logSystem("✓ Auto-added 1x Monster via promo click");
-                                customerDisplay.showPromo("🎁 Monster Promo Activated! 🎁", 3000);
+                                journal.logSystem("✓ Auto-added " + needMore + "x Monster via BOGO promo click");
+                                customerDisplay.showPromo("🎁 Monster BOGO Activated! 🎁", 3000);
                             } else {
-                                System.out.println("📢 Customer declined Monster promo");
+                                System.out.println("📢 Customer declined Monster BOGO");
                             }
                         }
                 );
-            } else if (monsterCount >= 3) {
+            } else if (monsterCount >= 2) {
+                // Even number (2, 4, 6, etc.) - already qualifies for BOGO!
                 System.out.println("  ✓ Monster BOGO promo qualified!");
-                customerDisplay.showPromo("🎁 Buy 3 Monsters Get 1 Free - You Qualify! 🎁", 5000);
+                customerDisplay.showPromo("🎁 Monster BOGO - You Qualify! Get 1 FREE! 🎁", 5000);
             }
         }
 

@@ -10,7 +10,7 @@ import java.util.*;
  *
  * MATCHES DISCOUNT API RULES:
  * 1. Polar Pop: Buy 2 Get 1 Free
- * 2. Food: 20% off all food items
+ * 2. Food: 5% off all food items
  * 3. Beverages: BOGO (Buy One Get One Free)
  */
 public class PromoChecker {
@@ -56,7 +56,7 @@ public class PromoChecker {
      * Check if scanning this product creates a promotion opportunity
      * Priority order matches discount API:
      * 1. Polar Pop Buy 2 Get 1 (most specific)
-     * 2. Food 20% off
+     * 2. Food 5% off
      * 3. Beverage BOGO (most general)
      */
     public PromoOpportunity checkForPromoOpportunity(Product scannedProduct,
@@ -73,7 +73,7 @@ public class PromoChecker {
             }
         }
 
-        // Priority 2: Check Food 20% off
+        // Priority 2: Check Food 5% off
         if (category.equals("FOOD")) {
             PromoOpportunity foodOpp = checkFoodDiscountOpportunity(scannedProduct, currentTransaction);
             if (foodOpp != null) {
@@ -124,19 +124,19 @@ public class PromoChecker {
     }
 
     /**
-     * Check Food 20% off opportunity
-     * Rule: 20% off all food items (encourages hot dog + taquito combos)
+     * Check Food 5% off opportunity
+     * Rule: 5% off all food items
      */
     private PromoOpportunity checkFoodDiscountOpportunity(Product scannedProduct,
                                                           Transaction transaction) {
         // Calculate total food in transaction (including just scanned item)
         double currentFoodTotal = calculateCategoryTotal(transaction, "FOOD");
-        double savings = currentFoodTotal * 0.20; // 20% off
+        double savings = currentFoodTotal * 0.05; // 5% off
 
         if (savings > 0) {
             return new PromoOpportunity(
-                    "20% Off Food",
-                    "You're getting 20% off all Food items!",
+                    "5% Off Food",
+                    "You're getting 5% off all Food items!",
                     savings,
                     new ArrayList<>(), // No items needed - already eligible
                     "PERCENT_OFF"
@@ -273,7 +273,7 @@ public class PromoChecker {
             return "BEVERAGE";
         }
 
-        // Food (hot food items - triggers 20% off)
+        // Food (hot food items - triggers 5% off)
         if (desc.contains("PIZZA") || desc.contains("HOT DOG") || desc.contains("BURGER") ||
                 desc.contains("SANDWICH") || desc.contains("DONUT") || desc.contains("TAQUITO") ||
                 desc.contains("CROISSANT") || desc.contains("SAUSAGE") || desc.contains("BREAKFAST") ||
