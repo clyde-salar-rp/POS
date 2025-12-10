@@ -335,24 +335,28 @@ public class RegisterWindow extends JFrame {
         }
     }
 
+    // Update the checkForPromoMessages method in RegisterWindow.java
+
     private void checkForPromoMessages(Product product) {
         String desc = product.getDescription().toUpperCase();
 
         System.out.println("🔍 Checking promos for: " + product.getDescription());
 
-        // Check for BOGO beverages
-        if (desc.contains("COKE") || desc.contains("PEPSI") ||
+        // Check for BOGO beverages (excluding POLAR POP which has its own promo)
+        if ((desc.contains("COKE") || desc.contains("PEPSI") ||
                 desc.contains("MONSTER") || desc.contains("RED BULL") ||
                 desc.contains("SPRITE") || desc.contains("GATORADE") ||
-                desc.contains("WATER") || desc.contains("ENERGY")) {
+                desc.contains("WATER") || desc.contains("ENERGY")) &&
+                !desc.contains("POLAR POP")) {
 
             long beverageCount = transaction.getItems().stream()
                     .filter(p -> {
                         String d = p.getDescription().toUpperCase();
-                        return d.contains("COKE") || d.contains("PEPSI") ||
+                        return (d.contains("COKE") || d.contains("PEPSI") ||
                                 d.contains("MONSTER") || d.contains("RED BULL") ||
                                 d.contains("SPRITE") || d.contains("GATORADE") ||
-                                d.contains("WATER") || d.contains("ENERGY");
+                                d.contains("WATER") || d.contains("ENERGY")) &&
+                                !d.contains("POLAR POP");
                     })
                     .mapToInt(Product::getQuantity)
                     .sum();
@@ -360,33 +364,80 @@ public class RegisterWindow extends JFrame {
             System.out.println("  → Beverage count: " + beverageCount);
 
             if (beverageCount == 1) {
-                // INTERACTIVE PROMO: Ask cashier if customer wants another beverage
-                customerDisplay.showPromo("Add 1 More Beverage for BOGO!", 4000);
+                // INTERACTIVE PROMO: Offer to add 1 more beverage
+                customerDisplay.showClickablePromo(
+                        "⚡ Add 1 More Beverage for BOGO! ⚡",
+                        (accepted) -> {
+                            if (accepted) {
+                                // Customer clicked - auto-add 1 more of the same beverage
+                                transaction.addItem(product);
+                                updateDisplay();
+                                customerDisplay.updateTransaction(transaction);
+                                journal.logSystem("✓ Auto-added 1x " + product.getDescription() + " via promo click");
 
-                // Suggest adding another beverage
-                java.util.List<Product> suggestedItems = new java.util.ArrayList<>();
-                suggestedItems.add(new Product(product.getUpc(), product.getDescription(), product.getPrice()));
-
-
-
+                                // Show confirmation that they now qualify
+                                customerDisplay.showPromo("🎉 BOGO Activated! You Qualify! 🎉", 3000);
+                            } else {
+                                System.out.println("📢 Customer declined beverage BOGO");
+                            }
+                        }
+                );
             } else if (beverageCount >= 2) {
                 System.out.println("  ✓ BOGO Promo qualified!");
-                customerDisplay.showPromo(
-                        "🎉 Buy 1 Get 1 on Beverages - You Qualify! 🎉", 5000);
+                customerDisplay.showPromo("🎉 Buy 1 Get 1 on Beverages - You Qualify! 🎉", 5000);
             }
         }
 
-        // Check for food discount (informational only)
-        if (desc.contains("PIZZA") || desc.contains("HOT DOG") ||
-                desc.contains("BURGER") || desc.contains("DONUT") ||
-                desc.contains("SANDWICH") || desc.contains("TAQUITO") ||
-                desc.contains("FOOD")) {
-            System.out.println("  ✓ Food discount promo triggered!");
-            customerDisplay.showPromo(
-                    "💰 10% OFF All Food Items! 💰", 4000);
+        // Check for Polar Pop Buy 2 Get 1 promotion
+        if (desc.contains("POLAR POP")) {
+            long polarPopCount = transaction.getItems().stream()
+                    .filter(p -> p.getDescription().toUpperCase().contains("POLAR POP"))
+                    .mapToInt(Product::getQuantity)
+                    .sum();
+
+            System.out.println("  → Polar Pop count: " + polarPopCount);
+
+            int remainder = (int) (polarPopCount % 3);
+
+            if (remainder == 1) {
+                // Need 2 more for Buy 2 Get 1
+                customerDisplay.showClickablePromo(
+                        "🥤 Add 2 More Polar Pops - Get 1 FREE! 🥤",
+                        (accepted) -> {
+                            if (accepted) {
+                                transaction.addItem(product, 2);
+                                updateDisplay();
+                                customerDisplay.updateTransaction(transaction);
+                                journal.logSystem("✓ Auto-added 2x Polar Pop via promo click");
+                                customerDisplay.showPromo("🎁 Buy 2 Get 1 Activated! 🎁", 3000);
+                            } else {
+                                System.out.println("📢 Customer declined Polar Pop promo");
+                            }
+                        }
+                );
+            } else if (remainder == 2) {
+                // Need 1 more for Buy 2 Get 1
+                customerDisplay.showClickablePromo(
+                        "🥤 Add 1 More Polar Pop - Get 1 FREE! 🥤",
+                        (accepted) -> {
+                            if (accepted) {
+                                transaction.addItem(product);
+                                updateDisplay();
+                                customerDisplay.updateTransaction(transaction);
+                                journal.logSystem("✓ Auto-added 1x Polar Pop via promo click");
+                                customerDisplay.showPromo("🎁 Buy 2 Get 1 Activated! 🎁", 3000);
+                            } else {
+                                System.out.println("📢 Customer declined Polar Pop promo");
+                            }
+                        }
+                );
+            } else if (polarPopCount >= 3 && remainder == 0) {
+                System.out.println("  ✓ Polar Pop Buy 2 Get 1 qualified!");
+                customerDisplay.showPromo("🎁 Buy 2 Get 1 Polar Pop - You Qualify! 🎁", 5000);
+            }
         }
 
-        // Check for Monster promotion (INTERACTIVE)
+        // Check for Monster specific promotion
         if (desc.contains("MONSTER")) {
             long monsterCount = transaction.getItems().stream()
                     .filter(p -> p.getDescription().toUpperCase().contains("MONSTER"))
@@ -399,15 +450,33 @@ public class RegisterWindow extends JFrame {
                 customerDisplay.showPromo("Buy 3 Monsters, Get 1 Free!", 4000);
             } else if (monsterCount == 2) {
                 // INTERACTIVE: Suggest adding 1 more Monster
-                customerDisplay.showPromo("⚡ Add 1 More Monster for Free Item! ⚡", 4000);
-
-                java.util.List<Product> suggestedItems = new java.util.ArrayList<>();
-                suggestedItems.add(new Product(product.getUpc(), product.getDescription(), product.getPrice()));
+                customerDisplay.showClickablePromo(
+                        "⚡ Add 1 More Monster for Free Item! ⚡",
+                        (accepted) -> {
+                            if (accepted) {
+                                transaction.addItem(product);
+                                updateDisplay();
+                                customerDisplay.updateTransaction(transaction);
+                                journal.logSystem("✓ Auto-added 1x Monster via promo click");
+                                customerDisplay.showPromo("🎁 Monster Promo Activated! 🎁", 3000);
+                            } else {
+                                System.out.println("📢 Customer declined Monster promo");
+                            }
+                        }
+                );
             } else if (monsterCount >= 3) {
                 System.out.println("  ✓ Monster BOGO promo qualified!");
-                customerDisplay.showPromo(
-                        "🎁 Buy 3 Monsters Get 1 Free - You Qualify! 🎁", 5000);
+                customerDisplay.showPromo("🎁 Buy 3 Monsters Get 1 Free - You Qualify! 🎁", 5000);
             }
+        }
+
+        // Check for food discount (informational only - already applies automatically)
+        if (desc.contains("PIZZA") || desc.contains("HOT DOG") ||
+                desc.contains("BURGER") || desc.contains("DONUT") ||
+                desc.contains("SANDWICH") || desc.contains("TAQUITO") ||
+                desc.contains("FOOD")) {
+            System.out.println("  ✓ Food discount promo triggered!");
+            customerDisplay.showPromo("💰 10% OFF All Food Items! 💰", 4000);
         }
     }
 
