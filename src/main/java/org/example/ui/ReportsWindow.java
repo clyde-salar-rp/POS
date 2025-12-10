@@ -6,6 +6,8 @@ import org.example.TransactionDatabase.*;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,6 +21,10 @@ public class ReportsWindow extends JFrame {
     private final JSpinner dateSpinner;
     private static final Color PRIMARY_COLOR = new Color(25, 118, 210);
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("MM/dd/yyyy");
+
+    // Store current report data for CSV export
+    private LocalDate currentReportDate;
+    private String currentReportType;
 
     public ReportsWindow(TransactionDatabase database) {
         this.database = database;
@@ -61,7 +67,7 @@ public class ReportsWindow extends JFrame {
         styleButton(generateButton, PRIMARY_COLOR);
         generateButton.addActionListener(e -> generateReport());
 
-        JButton exportButton = new JButton("Export");
+        JButton exportButton = new JButton("Export CSV");
         styleButton(exportButton, new Color(76, 175, 80));
         exportButton.addActionListener(e -> exportReport());
 
@@ -119,6 +125,10 @@ public class ReportsWindow extends JFrame {
         LocalDate selectedDate = spinnerDate.toInstant()
                 .atZone(java.time.ZoneId.systemDefault())
                 .toLocalDate();
+
+        // Store current report info for export
+        currentReportType = reportType;
+        currentReportDate = selectedDate;
 
         try {
             switch (reportType) {
@@ -266,44 +276,49 @@ public class ReportsWindow extends JFrame {
 
         double creditPercent = report.totalSales() > 0
                 ? (report.creditTotal() / report.totalSales()) * 100 : 0;
-        sb.append(String.format("%-20s %15s %19.2f%%\n", "", "", creditPercent));
+        sb.append(String.format("%-20s %15s %19.2f%%\n\n", "", "", creditPercent));
 
         sb.append("=".repeat(70)).append("\n");
         sb.append(String.format("%-20s %15d $%,19.2f\n",
-                "TOTAL", report.totalCount(), report.totalSales()));
+                "TOTAL", report.cashCount() + report.creditCount(), report.totalSales()));
         sb.append("=".repeat(70)).append("\n");
 
         reportArea.setText(sb.toString());
     }
 
-    private void generateWeeklySummary(LocalDate endDate) throws SQLException {
-        LocalDate startDate = endDate.minusDays(6);
-        StringBuilder sb = new StringBuilder();
+    private void generateWeeklySummary(LocalDate date) throws SQLException {
+        LocalDate startOfWeek = date.minusDays(6);
 
+        StringBuilder sb = new StringBuilder();
         sb.append("=".repeat(70)).append("\n");
         sb.append(centerText("WEEKLY SALES SUMMARY", 70)).append("\n");
-        sb.append(centerText(startDate.format(DATE_FORMAT) + " - " + endDate.format(DATE_FORMAT), 70)).append("\n");
+        sb.append(centerText(startOfWeek.format(DATE_FORMAT) + " - " + date.format(DATE_FORMAT), 70)).append("\n");
         sb.append("=".repeat(70)).append("\n\n");
 
         sb.append(String.format("%-12s %12s %15s %15s\n",
-                "DATE", "TRANSACTIONS", "REVENUE", "AVG TRANS"));
+                "DATE", "TRANSACTIONS", "TOTAL SALES", "AVG TRANS"));
         sb.append("-".repeat(70)).append("\n");
 
         double weekTotal = 0;
         int weekTransactions = 0;
 
         for (int i = 0; i < 7; i++) {
-            LocalDate date = startDate.plusDays(i);
-            DailySalesReport dayReport = database.getDailySalesReport(date.atStartOfDay());
+            LocalDate currentDate = startOfWeek.plusDays(i);
+            LocalDateTime start = currentDate.atStartOfDay();
+            DailySalesReport dayReport = database.getDailySalesReport(start);
+
+            double dayTotal = dayReport.totalSales();
+            int dayTransactions = dayReport.transactionCount();
+            double dayAvg = dayTransactions > 0 ? dayTotal / dayTransactions : 0;
+
+            weekTotal += dayTotal;
+            weekTransactions += dayTransactions;
 
             sb.append(String.format("%-12s %12d $%,14.2f $%,14.2f\n",
-                    date.format(DateTimeFormatter.ofPattern("MM/dd")),
-                    dayReport.transactionCount(),
-                    dayReport.totalSales(),
-                    dayReport.avgTransaction()));
-
-            weekTotal += dayReport.totalSales();
-            weekTransactions += dayReport.transactionCount();
+                    currentDate.format(DATE_FORMAT),
+                    dayTransactions,
+                    dayTotal,
+                    dayAvg));
         }
 
         sb.append("=".repeat(70)).append("\n");
@@ -317,16 +332,27 @@ public class ReportsWindow extends JFrame {
 
     private void exportReport() {
         JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("Export Report");
-        fileChooser.setSelectedFile(new java.io.File("report.txt"));
+        fileChooser.setDialogTitle("Export Report as CSV");
+
+        // Set default filename based on report type and date
+        String filename = String.format("%s_%s.csv",
+                currentReportType.replace(" ", "_"),
+                currentReportDate.format(DateTimeFormatter.ofPattern("yyyyMMdd")));
+        fileChooser.setSelectedFile(new java.io.File(filename));
 
         int result = fileChooser.showSaveDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             try {
                 java.io.File file = fileChooser.getSelectedFile();
-                java.nio.file.Files.writeString(file.toPath(), reportArea.getText());
+                // Ensure file has .csv extension
+                if (!file.getName().toLowerCase().endsWith(".csv")) {
+                    file = new java.io.File(file.getAbsolutePath() + ".csv");
+                }
+
+                exportReportAsCSV(file);
+
                 JOptionPane.showMessageDialog(this,
-                        "Report exported successfully!",
+                        "Report exported successfully as CSV!",
                         "Success",
                         JOptionPane.INFORMATION_MESSAGE);
             } catch (Exception e) {
@@ -334,8 +360,178 @@ public class ReportsWindow extends JFrame {
                         "Error exporting report: " + e.getMessage(),
                         "Error",
                         JOptionPane.ERROR_MESSAGE);
+                e.printStackTrace();
             }
         }
+    }
+
+    private void exportReportAsCSV(java.io.File file) throws SQLException, IOException {
+        try (FileWriter writer = new FileWriter(file)) {
+            switch (currentReportType) {
+                case "Daily Sales Summary" -> exportDailySalesCSV(writer, currentReportDate);
+                case "Category Sales" -> exportCategoryCSV(writer, currentReportDate);
+                case "Top Selling Items" -> exportTopSellingCSV(writer, currentReportDate);
+                case "Payment Methods" -> exportPaymentMethodCSV(writer, currentReportDate);
+                case "Weekly Summary" -> exportWeeklySummaryCSV(writer, currentReportDate);
+            }
+        }
+    }
+
+    private void exportDailySalesCSV(FileWriter writer, LocalDate date) throws SQLException, IOException {
+        LocalDateTime startOfDay = date.atStartOfDay();
+        DailySalesReport report = database.getDailySalesReport(startOfDay);
+
+        // Write header
+        writer.write("Daily Sales Summary\n");
+        writer.write("Date," + date.format(DATE_FORMAT) + "\n\n");
+
+        // Write data
+        writer.write("Metric,Value\n");
+        writer.write(String.format("Total Transactions,%d\n", report.transactionCount()));
+        writer.write(String.format("Gross Sales,%.2f\n", report.totalSales() + report.totalDiscounts()));
+        writer.write(String.format("Total Discounts,%.2f\n", report.totalDiscounts()));
+        writer.write(String.format("Net Sales (before tax),%.2f\n", report.totalSales() - report.totalTax()));
+        writer.write(String.format("Total Tax,%.2f\n", report.totalTax()));
+        writer.write(String.format("Total Revenue,%.2f\n", report.totalSales()));
+        writer.write(String.format("Average Transaction,%.2f\n", report.avgTransaction()));
+
+        if (report.totalDiscounts() > 0) {
+            double discountPercent = (report.totalDiscounts() / (report.totalSales() + report.totalDiscounts())) * 100;
+            writer.write(String.format("Discount Rate,%.2f%%\n", discountPercent));
+        }
+    }
+
+    private void exportCategoryCSV(FileWriter writer, LocalDate date) throws SQLException, IOException {
+        LocalDateTime start = date.atStartOfDay();
+        LocalDateTime end = date.atTime(LocalTime.MAX);
+
+        java.util.List<CategorySalesReport> categories = database.getCategorySales(start, end);
+
+        // Write header
+        writer.write("Category Sales Report\n");
+        writer.write("Date," + date.format(DATE_FORMAT) + "\n\n");
+        writer.write("Category,Transactions,Quantity Sold,Total Sales\n");
+
+        // Write data
+        double grandTotal = 0;
+        int totalQty = 0;
+        int totalTransactions = 0;
+
+        for (CategorySalesReport cat : categories) {
+            writer.write(String.format("%s,%d,%d,%.2f\n",
+                    escapeCsv(cat.category()),
+                    cat.transactionCount(),
+                    cat.totalQuantity(),
+                    cat.totalSales()));
+
+            grandTotal += cat.totalSales();
+            totalQty += cat.totalQuantity();
+            totalTransactions += cat.transactionCount();
+        }
+
+        // Write totals
+        writer.write(String.format("\nTOTAL,%d,%d,%.2f\n",
+                totalTransactions, totalQty, grandTotal));
+    }
+
+    private void exportTopSellingCSV(FileWriter writer, LocalDate date) throws SQLException, IOException {
+        LocalDateTime start = date.atStartOfDay();
+        LocalDateTime end = date.atTime(LocalTime.MAX);
+
+        java.util.List<TopSellingItem> items = database.getTopSellingItems(20, start, end);
+
+        // Write header
+        writer.write("Top 20 Selling Items\n");
+        writer.write("Date," + date.format(DATE_FORMAT) + "\n\n");
+        writer.write("Rank,Description,Quantity Sold,Transactions,Revenue\n");
+
+        // Write data
+        int rank = 1;
+        for (TopSellingItem item : items) {
+            writer.write(String.format("%d,\"%s\",%d,%d,%.2f\n",
+                    rank++,
+                    escapeCsv(item.description()),
+                    item.totalQuantity(),
+                    item.transactionCount(),
+                    item.totalSales()));
+        }
+    }
+
+    private void exportPaymentMethodCSV(FileWriter writer, LocalDate date) throws SQLException, IOException {
+        LocalDateTime start = date.atStartOfDay();
+        LocalDateTime end = date.atTime(LocalTime.MAX);
+
+        PaymentMethodReport report = database.getPaymentMethodReport(start, end);
+
+        // Write header
+        writer.write("Payment Method Breakdown\n");
+        writer.write("Date," + date.format(DATE_FORMAT) + "\n\n");
+        writer.write("Payment Method,Transactions,Total Amount,Percentage\n");
+
+        // Calculate percentages
+        double cashPercent = report.totalSales() > 0
+                ? (report.cashTotal() / report.totalSales()) * 100 : 0;
+        double creditPercent = report.totalSales() > 0
+                ? (report.creditTotal() / report.totalSales()) * 100 : 0;
+
+        // Write data
+        writer.write(String.format("CASH,%d,%.2f,%.2f%%\n",
+                report.cashCount(), report.cashTotal(), cashPercent));
+        writer.write(String.format("CREDIT,%d,%.2f,%.2f%%\n",
+                report.creditCount(), report.creditTotal(), creditPercent));
+
+        // Write totals
+        writer.write(String.format("\nTOTAL,%d,%.2f,100.00%%\n",
+                report.cashCount() + report.creditCount(), report.totalSales()));
+    }
+
+    private void exportWeeklySummaryCSV(FileWriter writer, LocalDate date) throws SQLException, IOException {
+        LocalDate startOfWeek = date.minusDays(6);
+
+        // Write header
+        writer.write("Weekly Sales Summary\n");
+        writer.write(String.format("Period,%s - %s\n\n",
+                startOfWeek.format(DATE_FORMAT), date.format(DATE_FORMAT)));
+        writer.write("Date,Transactions,Total Sales,Average Transaction\n");
+
+        // Write daily data
+        double weekTotal = 0;
+        int weekTransactions = 0;
+
+        for (int i = 0; i < 7; i++) {
+            LocalDate currentDate = startOfWeek.plusDays(i);
+            LocalDateTime start = currentDate.atStartOfDay();
+            DailySalesReport dayReport = database.getDailySalesReport(start);
+
+            double dayTotal = dayReport.totalSales();
+            int dayTransactions = dayReport.transactionCount();
+            double dayAvg = dayTransactions > 0 ? dayTotal / dayTransactions : 0;
+
+            weekTotal += dayTotal;
+            weekTransactions += dayTransactions;
+
+            writer.write(String.format("%s,%d,%.2f,%.2f\n",
+                    currentDate.format(DATE_FORMAT),
+                    dayTransactions,
+                    dayTotal,
+                    dayAvg));
+        }
+
+        // Write totals
+        double weekAvg = weekTransactions > 0 ? weekTotal / weekTransactions : 0;
+        writer.write(String.format("\nTOTAL,%d,%.2f,%.2f\n",
+                weekTransactions, weekTotal, weekAvg));
+    }
+
+    private String escapeCsv(String value) {
+        if (value == null) {
+            return "";
+        }
+        // Escape quotes and wrap in quotes if contains comma, quote, or newline
+        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
     }
 
     private String centerText(String text, int width) {
