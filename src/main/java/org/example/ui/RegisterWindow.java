@@ -8,7 +8,9 @@ import org.example.model.Product;
 import org.example.model.Transaction;
 import org.example.model.TransactionManager;
 import org.example.service.DiscountService;
+import org.example.service.PromoChecker;
 import org.example.ui.components.*;
+import org.example.ui.dialogs.PromoOpportunityDialog;
 import org.example.ui.dialogs.SuspendedTransactionsDialog;
 import org.example.ui.dialogs.VJConfigDialog;
 
@@ -25,6 +27,7 @@ public class RegisterWindow extends JFrame {
     private final ReceiptPrinter receiptPrinter;
     private final TransactionManager transactionManager;
     private final DiscountService discountService;
+    private final PromoChecker promoChecker;
     private Transaction transaction;
 
     private enum RegisterMode {
@@ -58,6 +61,7 @@ public class RegisterWindow extends JFrame {
         this.journal = vjClient;
         this.transactionManager = new TransactionManager(database);
         this.discountService = new DiscountService();
+        this.promoChecker = new PromoChecker();
         this.transaction = new Transaction();
 
         loadPricebook();
@@ -313,6 +317,9 @@ public class RegisterWindow extends JFrame {
         if (product != null) {
             transaction.addItem(product);
             updateDisplay();
+
+            // Check for promotion opportunities
+            checkAndOfferPromotion(product);
         } else {
             JOptionPane.showMessageDialog(this,
                     "Item not found: " + upc,
@@ -328,6 +335,9 @@ public class RegisterWindow extends JFrame {
         journal.logQuickKey(product.getDescription(), product.getPrice());
         transaction.addItem(product);
         updateDisplay();
+
+        // Check for promotion opportunities
+        checkAndOfferPromotion(product);
     }
 
     private void enterTenderingMode() {
@@ -784,12 +794,10 @@ public class RegisterWindow extends JFrame {
             }
         }
 
-        // CHANGED: Now returns SuspendedTransactionInfo instead of SuspendedTransaction
         org.example.TransactionDatabase.SuspendedTransactionInfo suspended =
                 SuspendedTransactionsDialog.showDialog(this, transactionManager);
 
         if (suspended != null) {
-            // CHANGED: Use suspended.id() instead of suspended.getId()
             Transaction resumedTransaction = transactionManager.resumeTransaction(suspended.id());
 
             if (resumedTransaction != null) {
@@ -832,6 +840,51 @@ public class RegisterWindow extends JFrame {
                     currentDiscount.total,
                     currentDiscount.totalDiscount
             );
+        }
+    }
+
+    /**
+     * Check if scanned product creates a promotion opportunity
+     * and offer to add required items automatically
+     */
+    private void checkAndOfferPromotion(Product scannedProduct) {
+        PromoChecker.PromoOpportunity opportunity =
+                promoChecker.checkForPromoOpportunity(scannedProduct, transaction);
+
+        if (opportunity != null) {
+            journal.logSystem("Promotion opportunity detected: " + opportunity.getPromoName());
+
+            // Show the promotion dialog
+            boolean accepted = PromoOpportunityDialog.showPromoDialog(this, opportunity);
+
+            if (accepted) {
+                journal.logSystem("User accepted promotion: " + opportunity.getPromoName());
+
+                // Add the required items
+                for (PromoChecker.ItemToAdd itemToAdd : opportunity.getItemsNeeded()) {
+                    for (int i = 0; i < itemToAdd.getQuantity(); i++) {
+                        transaction.addItem(itemToAdd.getProduct());
+                        journal.logSystem(String.format(
+                                "Auto-added for promo: %s",
+                                itemToAdd.getProduct().getDescription()
+                        ));
+                    }
+                }
+
+                // Update display with new items
+                updateDisplay();
+
+                // Show confirmation
+                if (!opportunity.getItemsNeeded().isEmpty()) {
+                    JOptionPane.showMessageDialog(this,
+                            String.format("Items added! You'll save $%.2f at checkout.",
+                                    opportunity.getPotentialSavings()),
+                            "Promotion Applied",
+                            JOptionPane.INFORMATION_MESSAGE);
+                }
+            } else {
+                journal.logSystem("User declined promotion: " + opportunity.getPromoName());
+            }
         }
     }
 }

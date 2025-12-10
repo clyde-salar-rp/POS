@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class DiscountService {
-    private static final String DISCOUNT_API_URL = "http://localhost:8080/discount";
+    private static final String DISCOUNT_API_URL = "http://discount-api-alb-1415305850.ap-southeast-2.elb.amazonaws.com/discount";
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
