@@ -373,7 +373,7 @@ public class RegisterWindow extends JFrame {
                                 transaction.addItem(product);
                                 updateDisplay();
                                 customerDisplay.updateTransaction(transaction);
-                                journal.logSystem("✓ Auto-added 1x " + product.getDescription() + " via promo click");
+                                journal.logCustomer("✓ Auto-added 1x " + product.getDescription() + " via promo click");
 
                                 // Show confirmation that they now qualify
                                 customerDisplay.showPromo("🎉 BOGO Activated! You Qualify! 🎉", 3000);
@@ -408,7 +408,7 @@ public class RegisterWindow extends JFrame {
                                 transaction.addItem(product, 2);
                                 updateDisplay();
                                 customerDisplay.updateTransaction(transaction);
-                                journal.logSystem("✓ Auto-added 2x Polar Pop via promo click");
+                                journal.logCustomer("✓ Auto-added 2x Polar Pop via promo click");
                                 customerDisplay.showPromo("🎁 Buy 2 Get 1 Activated! 🎁", 3000);
                             } else {
                                 System.out.println("📢 Customer declined Polar Pop promo");
@@ -424,7 +424,7 @@ public class RegisterWindow extends JFrame {
                                 transaction.addItem(product);
                                 updateDisplay();
                                 customerDisplay.updateTransaction(transaction);
-                                journal.logSystem("✓ Auto-added 1x Polar Pop via promo click");
+                                journal.logCustomer("✓ Auto-added 1x Polar Pop via promo click");
                                 customerDisplay.showPromo("🎁 Buy 2 Get 1 Activated! 🎁", 3000);
                             } else {
                                 System.out.println("📢 Customer declined Polar Pop promo");
@@ -460,7 +460,7 @@ public class RegisterWindow extends JFrame {
                                 transaction.addItem(product, needMore);
                                 updateDisplay();
                                 customerDisplay.updateTransaction(transaction);
-                                journal.logSystem("✓ Auto-added " + needMore + "x Monster via BOGO promo click");
+                                journal.logCustomer("✓ Auto-added " + needMore + "x Monster via BOGO promo click");
                                 customerDisplay.showPromo("🎁 Monster BOGO Activated! 🎁", 3000);
                             } else {
                                 System.out.println("📢 Customer declined Monster BOGO");

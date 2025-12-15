@@ -201,6 +201,13 @@ public class VirtualJournalClient {
         send(logEntry);
     }
 
+    public void logCustomer(String message) {
+        String logEntry = formatLogEntry(
+                String.format("CUSTOMER | %s", message)
+        );
+        send(logEntry);
+    }
+
     // ========== RECEIPT METHODS ==========
 
     public String printReceipt(Transaction transaction, String paymentType,
