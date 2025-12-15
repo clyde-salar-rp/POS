@@ -8,12 +8,14 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.text.DecimalFormat;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
 /**
  * Customer-facing display with INTERACTIVE promotional offers
  * Customers can click Accept/Decline buttons directly on this display
+ * NOW WITH DYNAMIC PROMO LOADING FROM API!
  */
 public class CustomerDisplay extends JFrame {
     private final JLabel totalLabel;
@@ -31,6 +33,11 @@ public class CustomerDisplay extends JFrame {
     private final JButton declineButton;
     private Consumer<Boolean> currentPromoCallback;
 
+    // Dynamic promo loading
+    private final DiscountService discountService;
+    private List<String> cachedPromoMessages;
+    private Timer promoRefreshTimer;
+
     private static final Color DISPLAY_BG = new Color(20, 20, 20);
     private static final Color TEXT_COLOR = new Color(0, 255, 100);
     private static final Color TOTAL_COLOR = new Color(255, 255, 0);
@@ -46,8 +53,12 @@ public class CustomerDisplay extends JFrame {
     private static final Font BUTTON_FONT = new Font("SansSerif", Font.BOLD, 16);
     private static final Font PROMO_TITLE_FONT = new Font("SansSerif", Font.BOLD, 18);
 
-    public CustomerDisplay() {
+    private static final int PROMO_REFRESH_INTERVAL = 300000; // 5 minutes
+
+    public CustomerDisplay(DiscountService discountService) {
+        this.discountService = discountService;
         this.moneyFormat = new DecimalFormat("#,##0.00");
+        this.cachedPromoMessages = new ArrayList<>();
 
         setTitle("Customer Display");
         setSize(320, 700);
@@ -58,142 +69,235 @@ public class CustomerDisplay extends JFrame {
         // Header
         JPanel headerPanel = new JPanel();
         headerPanel.setBackground(DISPLAY_BG);
-        headerPanel.setBorder(new EmptyBorder(10, 10, 5, 10));
+        headerPanel.setBorder(new EmptyBorder(15, 10, 10, 10));
+        JLabel headerLabel = new JLabel("CUSTOMER DISPLAY");
+        headerLabel.setFont(HEADER_FONT);
+        headerLabel.setForeground(TEXT_COLOR);
+        headerPanel.add(headerLabel);
 
-        JLabel welcomeLabel = new JLabel("CLYDE'S STORE");
-        welcomeLabel.setFont(HEADER_FONT);
-        welcomeLabel.setForeground(TEXT_COLOR);
-        welcomeLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        headerPanel.add(welcomeLabel);
-
-        // Items display area
+        // Items display
         itemsArea = new JTextArea();
         itemsArea.setFont(MAIN_FONT);
-        itemsArea.setForeground(TEXT_COLOR);
         itemsArea.setBackground(DISPLAY_BG);
+        itemsArea.setForeground(TEXT_COLOR);
         itemsArea.setEditable(false);
+        itemsArea.setBorder(new EmptyBorder(10, 15, 10, 15));
         itemsArea.setLineWrap(false);
-        itemsArea.setText("Ready...");
-        itemsArea.setMargin(new Insets(5, 5, 5, 5));
 
-        JScrollPane itemsScroll = new JScrollPane(itemsArea);
-        itemsScroll.setBorder(BorderFactory.createEmptyBorder());
-        itemsScroll.setBackground(DISPLAY_BG);
-        itemsScroll.getViewport().setBackground(DISPLAY_BG);
+        JScrollPane scrollPane = new JScrollPane(itemsArea);
+        scrollPane.setBorder(null);
+        scrollPane.setBackground(DISPLAY_BG);
 
-        // Simple promo banner (non-interactive)
+        // Total display
+        JPanel totalPanel = new JPanel();
+        totalPanel.setBackground(DISPLAY_BG);
+        totalPanel.setBorder(new EmptyBorder(15, 10, 15, 10));
+        totalLabel = new JLabel("$0.00");
+        totalLabel.setFont(TOTAL_FONT);
+        totalLabel.setForeground(TOTAL_COLOR);
+        totalPanel.add(totalLabel);
+
+        // Promo banner (CLICKABLE - customer taps this to accept promo)
         promoPanel = new JPanel(new BorderLayout());
         promoPanel.setBackground(PROMO_BG);
-        promoPanel.setBorder(new EmptyBorder(10, 8, 10, 8));
-        promoPanel.setPreferredSize(new Dimension(320, 60));
+        promoPanel.setBorder(new EmptyBorder(12, 8, 12, 8));
         promoPanel.setVisible(false);
-        promoPanel.setCursor(new Cursor(Cursor.HAND_CURSOR)); // Make it look clickable
+        promoPanel.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
         promoMessageLabel = new JLabel("", SwingConstants.CENTER);
         promoMessageLabel.setFont(PROMO_FONT);
         promoMessageLabel.setForeground(Color.WHITE);
         promoPanel.add(promoMessageLabel, BorderLayout.CENTER);
 
-        // Make the banner clickable
+        // Make the entire promo panel clickable
         promoPanel.addMouseListener(new java.awt.event.MouseAdapter() {
-            public void mouseClicked(java.awt.event.MouseEvent evt) {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
                 handlePromoBannerClick();
             }
-            public void mouseEntered(java.awt.event.MouseEvent evt) {
-                promoPanel.setBackground(PROMO_BG.brighter());
+
+            @Override
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                promoPanel.setBackground(PROMO_BG.darker());
             }
-            public void mouseExited(java.awt.event.MouseEvent evt) {
+
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent e) {
                 promoPanel.setBackground(PROMO_BG);
             }
         });
 
-        // INTERACTIVE PROMO PANEL (with buttons)
+        // Interactive promo panel (with Accept/Decline buttons - currently unused)
         interactivePromoPanel = new JPanel();
-        interactivePromoPanel.setLayout(new BoxLayout(interactivePromoPanel, BoxLayout.Y_AXIS));
+        interactivePromoPanel.setLayout(new BorderLayout(0, 8));
         interactivePromoPanel.setBackground(INTERACTIVE_BG);
-        interactivePromoPanel.setBorder(new EmptyBorder(15, 10, 15, 10));
+        interactivePromoPanel.setBorder(new EmptyBorder(12, 12, 12, 12));
         interactivePromoPanel.setVisible(false);
 
-        // Promo title
-        promoTitleLabel = new JLabel("", SwingConstants.CENTER);
+        JPanel interactiveTitlePanel = new JPanel(new BorderLayout());
+        interactiveTitlePanel.setOpaque(false);
+        promoTitleLabel = new JLabel("SPECIAL OFFER", SwingConstants.CENTER);
         promoTitleLabel.setFont(PROMO_TITLE_FONT);
         promoTitleLabel.setForeground(Color.WHITE);
-        promoTitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        interactivePromoPanel.add(promoTitleLabel);
+        interactiveTitlePanel.add(promoTitleLabel, BorderLayout.CENTER);
 
-        interactivePromoPanel.add(Box.createRigidArea(new Dimension(0, 8)));
-
-        // Promo details
         promoDetailsLabel = new JLabel("", SwingConstants.CENTER);
         promoDetailsLabel.setFont(PROMO_FONT);
         promoDetailsLabel.setForeground(Color.WHITE);
-        promoDetailsLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        interactivePromoPanel.add(promoDetailsLabel);
 
-        interactivePromoPanel.add(Box.createRigidArea(new Dimension(0, 12)));
-
-        // Button panel
         JPanel buttonPanel = new JPanel(new GridLayout(1, 2, 10, 0));
-        buttonPanel.setMaximumSize(new Dimension(280, 50));
-        buttonPanel.setBackground(INTERACTIVE_BG);
+        buttonPanel.setOpaque(false);
 
-        acceptButton = new JButton("YES");
+        acceptButton = new JButton("✓ ACCEPT");
         acceptButton.setFont(BUTTON_FONT);
-        acceptButton.setForeground(Color.WHITE);
         acceptButton.setBackground(ACCEPT_COLOR);
+        acceptButton.setForeground(Color.WHITE);
         acceptButton.setFocusPainted(false);
         acceptButton.setBorderPainted(false);
-        acceptButton.setOpaque(true);
         acceptButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        // Not used anymore - keeping for potential future use
+        acceptButton.addActionListener(e -> handlePromoResponse(true));
 
-        declineButton = new JButton("NO");
+        declineButton = new JButton("✗ NO THANKS");
         declineButton.setFont(BUTTON_FONT);
-        declineButton.setForeground(Color.WHITE);
         declineButton.setBackground(DECLINE_COLOR);
+        declineButton.setForeground(Color.WHITE);
         declineButton.setFocusPainted(false);
         declineButton.setBorderPainted(false);
-        declineButton.setOpaque(true);
         declineButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        // Not used anymore - keeping for potential future use
+        declineButton.addActionListener(e -> handlePromoResponse(false));
 
         buttonPanel.add(acceptButton);
         buttonPanel.add(declineButton);
 
-        interactivePromoPanel.add(buttonPanel);
-
-        // Total panel
-        JPanel totalPanel = new JPanel();
-        totalPanel.setBackground(new Color(30, 30, 30));
-        totalPanel.setBorder(new EmptyBorder(15, 10, 15, 10));
-        totalPanel.setLayout(new BorderLayout());
-
-        totalLabel = new JLabel("$0.00", SwingConstants.CENTER);
-        totalLabel.setFont(TOTAL_FONT);
-        totalLabel.setForeground(TOTAL_COLOR);
-        totalPanel.add(totalLabel, BorderLayout.CENTER);
-
-        // Center panel - stack items, simple promo, interactive promo
-        JPanel centerPanel = new JPanel(new BorderLayout());
-        centerPanel.setBackground(DISPLAY_BG);
-
-        JPanel promoStack = new JPanel();
-        promoStack.setLayout(new BoxLayout(promoStack, BoxLayout.Y_AXIS));
-        promoStack.setBackground(DISPLAY_BG);
-        promoStack.add(promoPanel);
-        promoStack.add(interactivePromoPanel);
-
-        centerPanel.add(itemsScroll, BorderLayout.CENTER);
-        centerPanel.add(promoStack, BorderLayout.SOUTH);
+        interactivePromoPanel.add(interactiveTitlePanel, BorderLayout.NORTH);
+        interactivePromoPanel.add(promoDetailsLabel, BorderLayout.CENTER);
+        interactivePromoPanel.add(buttonPanel, BorderLayout.SOUTH);
 
         add(headerPanel, BorderLayout.NORTH);
-        add(centerPanel, BorderLayout.CENTER);
+        add(promoPanel, BorderLayout.AFTER_LINE_ENDS);
+        add(interactivePromoPanel, BorderLayout.AFTER_LAST_LINE);
+        add(scrollPane, BorderLayout.CENTER);
         add(totalPanel, BorderLayout.SOUTH);
+
+        // Load initial promotions
+        refreshPromotions();
+
+        // Start auto-refresh timer for promotions
+        startPromoRefreshTimer();
 
         positionOnSecondaryMonitor();
         setVisible(true);
+    }
 
-        System.out.println("✓ Customer Display initialized (interactive mode)");
+    /**
+     * Start timer to refresh promotions periodically
+     */
+    private void startPromoRefreshTimer() {
+        promoRefreshTimer = new Timer(PROMO_REFRESH_INTERVAL, e -> refreshPromotions());
+        promoRefreshTimer.start();
+    }
+
+    /**
+     * Fetch active promotions from the API
+     */
+    private void refreshPromotions() {
+        SwingWorker<List<String>, Void> worker = new SwingWorker<>() {
+            @Override
+            protected List<String> doInBackground() throws Exception {
+                List<DiscountService.DiscountRuleInfo> rules = discountService.getActiveDiscountRules();
+                List<String> messages = new ArrayList<>();
+
+                // Sort by priority (highest first)
+                List<DiscountService.DiscountRuleInfo> sortedRules = new ArrayList<>(rules);
+                sortedRules.sort((a, b) -> Integer.compare(
+                        b.priority != null ? b.priority : 0,
+                        a.priority != null ? a.priority : 0
+                ));
+
+                // Convert to display messages
+                for (DiscountService.DiscountRuleInfo rule : sortedRules) {
+                    messages.add(formatPromoForDisplay(rule));
+                }
+
+                return messages;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    List<String> messages = get();
+                    cachedPromoMessages = messages;
+                    System.out.println("✓ Customer Display: Loaded " + messages.size() + " promotions");
+
+                    // Refresh the display if we're on the attract screen
+                    if (itemsArea.getText().contains("Loading deals")) {
+                        showAttractScreen();
+                    }
+                } catch (Exception e) {
+                    System.err.println("⚠ Customer Display: Failed to load promotions - " + e.getMessage());
+                    // Use fallback promotions
+                    cachedPromoMessages = getFallbackPromotions();
+
+                    // Refresh the display with fallback
+                    if (itemsArea.getText().contains("Loading deals")) {
+                        showAttractScreen();
+                    }
+                }
+            }
+        };
+
+        worker.execute();
+    }
+
+    /**
+     * Format a discount rule for the customer display
+     */
+    private String formatPromoForDisplay(DiscountService.DiscountRuleInfo rule) {
+        switch (rule.ruleType) {
+            case "PERCENT_OFF":
+                if (rule.category != null && !rule.category.isEmpty()) {
+                    return String.format("%.0f%% off %s", rule.percentOff, rule.category);
+                } else {
+                    return String.format("%.0f%% off", rule.percentOff);
+                }
+
+            case "BUY_ONE_GET_ONE":
+                return "BOGO " + (rule.category != null ? rule.category : "Items");
+
+            case "BUY_X_GET_Y":
+                if (rule.itemKeyword != null) {
+                    return String.format("Buy %d Get %d\n    %s",
+                            rule.buyQuantity, rule.freeQuantity, rule.itemKeyword);
+                } else {
+                    return String.format("Buy %d Get %d", rule.buyQuantity, rule.freeQuantity);
+                }
+
+            case "MIX_AND_MATCH":
+                return String.format("%d for $%.2f", rule.requiredQuantity, rule.bundlePrice);
+
+            default:
+                return rule.description;
+        }
+    }
+
+    /**
+     * Get fallback promotions if API is unavailable
+     */
+    private List<String> getFallbackPromotions() {
+        List<String> fallback = new ArrayList<>();
+        fallback.add("BOGO Beverages");
+        fallback.add("5% off Food");
+        fallback.add("Buy 2 Get 1\n    POLAR POP");
+        return fallback;
+    }
+
+    /**
+     * Stop the promo refresh timer (call on shutdown)
+     */
+    public void stopPromoRefresh() {
+        if (promoRefreshTimer != null) {
+            promoRefreshTimer.stop();
+        }
     }
 
     private void positionOnSecondaryMonitor() {
@@ -201,8 +305,7 @@ public class CustomerDisplay extends JFrame {
         GraphicsDevice[] screens = ge.getScreenDevices();
 
         if (screens.length > 1) {
-            GraphicsDevice secondScreen = screens[1];
-            Rectangle bounds = secondScreen.getDefaultConfiguration().getBounds();
+            Rectangle bounds = screens[1].getDefaultConfiguration().getBounds();
             setLocation(bounds.x, bounds.y);
             System.out.println("✓ Customer Display on secondary monitor");
         } else {
@@ -218,14 +321,12 @@ public class CustomerDisplay extends JFrame {
     public void showClickablePromo(String message, Consumer<Boolean> callback) {
         System.out.println("📢 CLICKABLE PROMO: " + message);
 
-        // Hide interactive promo panel (not using it anymore)
         interactivePromoPanel.setVisible(false);
 
         if (promoTimer != null && promoTimer.isRunning()) {
             promoTimer.stop();
         }
 
-        // Set the callback for when banner is clicked
         currentPromoCallback = callback;
 
         promoMessageLabel.setText("<html><center>👆 TAP HERE 👆<br>" + message + "</center></html>");
@@ -252,15 +353,28 @@ public class CustomerDisplay extends JFrame {
     private void handlePromoBannerClick() {
         System.out.println("📢 Customer CLICKED promo banner");
 
-        // Hide the banner
         promoPanel.setVisible(false);
 
-        // Call the callback if we have one
         if (currentPromoCallback != null) {
-            currentPromoCallback.accept(true); // Customer accepted by clicking
-
-            // Show confirmation
+            currentPromoCallback.accept(true);
             showConfirmationMessage("✓ Promo Added!");
+            currentPromoCallback = null;
+        }
+    }
+
+    /**
+     * Handle Accept/Decline button clicks (for future use)
+     */
+    private void handlePromoResponse(boolean accepted) {
+        System.out.println("📢 Customer " + (accepted ? "ACCEPTED" : "DECLINED") + " promo");
+
+        interactivePromoPanel.setVisible(false);
+
+        if (currentPromoCallback != null) {
+            currentPromoCallback.accept(accepted);
+            if (accepted) {
+                showConfirmationMessage("✓ Added to Order!");
+            }
             currentPromoCallback = null;
         }
     }
@@ -278,14 +392,12 @@ public class CustomerDisplay extends JFrame {
         confirmPanel.setBorder(new EmptyBorder(10, 8, 10, 8));
         confirmPanel.add(confirmLabel);
 
-        // Temporarily replace promo panel
         Container parent = promoPanel.getParent();
         parent.remove(promoPanel);
         parent.add(confirmPanel, 0);
         parent.revalidate();
         parent.repaint();
 
-        // Switch back after 2 seconds
         Timer timer = new Timer(2000, e -> {
             parent.remove(confirmPanel);
             parent.add(promoPanel, 0);
@@ -356,7 +468,6 @@ public class CustomerDisplay extends JFrame {
     public void showPromo(String message, int durationMs) {
         System.out.println("📢 Customer: " + message);
 
-        // Hide interactive promo if showing
         interactivePromoPanel.setVisible(false);
 
         if (promoTimer != null && promoTimer.isRunning()) {
@@ -386,16 +497,27 @@ public class CustomerDisplay extends JFrame {
     }
 
     public void showAttractScreen() {
-        itemsArea.setText(
-                "\n\n" +
-                        "  🛒 WELCOME! 🛒\n\n" +
-                        "  Scan items\n\n" +
-                        "  TODAY'S DEALS:\n" +
-                        "  • BOGO Beverages\n" +
-                        "  • 5% off Food\n" +
-                        "  • Buy 2 Polar Pop\n" +
-                        "    Get 1 Free!\n\n"
-        );
+        StringBuilder attractText = new StringBuilder();
+        attractText.append("\n\n");
+        attractText.append("  🛒 WELCOME! 🛒\n\n");
+        attractText.append("  Scan items\n\n");
+
+        if (!cachedPromoMessages.isEmpty()) {
+            attractText.append("  TODAY'S DEALS:\n");
+            for (String promo : cachedPromoMessages) {
+                // Handle multi-line promos (like "Buy 2 Get 1\n    POLAR POP")
+                String[] lines = promo.split("\n");
+                for (String line : lines) {
+                    attractText.append("  • ").append(line).append("\n");
+                }
+            }
+            attractText.append("\n");
+        } else {
+            // Show loading message if promotions haven't loaded yet
+            attractText.append("  Loading deals...\n\n");
+        }
+
+        itemsArea.setText(attractText.toString());
         totalLabel.setText("$0.00");
         hidePromo();
     }

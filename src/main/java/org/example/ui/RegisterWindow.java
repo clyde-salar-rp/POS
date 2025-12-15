@@ -68,7 +68,7 @@ public class RegisterWindow extends JFrame {
         setupShutdownHook();
 
         // Initialize customer display
-        customerDisplay = new CustomerDisplay();
+        customerDisplay = new CustomerDisplay(discountService);
         customerDisplay.showAttractScreen();
 
         journal.logSystem("Register initialized with " + database.getProductCount() + " products");
@@ -87,6 +87,7 @@ public class RegisterWindow extends JFrame {
 
             // Close customer display
             if (customerDisplay != null) {
+                customerDisplay.stopPromoRefresh();
                 customerDisplay.dispose();
             }
         }));
