@@ -173,10 +173,21 @@ public class CustomerDisplay extends JFrame {
         interactivePromoPanel.add(promoDetailsLabel, BorderLayout.CENTER);
         interactivePromoPanel.add(buttonPanel, BorderLayout.SOUTH);
 
+        // Create a main content panel to hold scrollPane and promo panels
+        JPanel contentPanel = new JPanel(new BorderLayout(0, 0));
+        contentPanel.setBackground(DISPLAY_BG);
+
+        // Create a panel for both promo banners (they share the same space)
+        JPanel promosContainer = new JPanel(new BorderLayout());
+        promosContainer.setBackground(DISPLAY_BG);
+        promosContainer.add(promoPanel, BorderLayout.CENTER);
+        promosContainer.add(interactivePromoPanel, BorderLayout.CENTER);
+
+        contentPanel.add(promosContainer, BorderLayout.NORTH);
+        contentPanel.add(scrollPane, BorderLayout.CENTER);
+
         add(headerPanel, BorderLayout.NORTH);
-        add(promoPanel, BorderLayout.AFTER_LINE_ENDS);
-        add(interactivePromoPanel, BorderLayout.AFTER_LAST_LINE);
-        add(scrollPane, BorderLayout.CENTER);
+        add(contentPanel, BorderLayout.CENTER);
         add(totalPanel, BorderLayout.SOUTH);
 
         // Load initial promotions
@@ -331,6 +342,13 @@ public class CustomerDisplay extends JFrame {
 
         promoMessageLabel.setText("<html><center>👆 TAP HERE 👆<br>" + message + "</center></html>");
         promoPanel.setVisible(true);
+
+        // Show the promo container
+        Container parent = promoPanel.getParent();
+        if (parent != null) {
+            parent.setVisible(true);
+        }
+
         promoPanel.revalidate();
         promoPanel.repaint();
 
@@ -476,6 +494,13 @@ public class CustomerDisplay extends JFrame {
 
         promoMessageLabel.setText("<html><center>" + message + "</center></html>");
         promoPanel.setVisible(true);
+
+        // Show the promo container
+        Container parent = promoPanel.getParent();
+        if (parent != null) {
+            parent.setVisible(true);
+        }
+
         promoPanel.revalidate();
         promoPanel.repaint();
 
@@ -492,6 +517,13 @@ public class CustomerDisplay extends JFrame {
         }
         promoPanel.setVisible(false);
         interactivePromoPanel.setVisible(false);
+
+        // Hide the promo container when both panels are hidden
+        Container parent = promoPanel.getParent();
+        if (parent != null) {
+            parent.setVisible(false);
+        }
+
         promoPanel.revalidate();
         promoPanel.repaint();
     }
