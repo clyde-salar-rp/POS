@@ -24,6 +24,8 @@ public class RegisterWindow extends JFrame {
     private final ReceiptPrinter receiptPrinter;
     private final TransactionManager transactionManager;
     private final DiscountService discountService;
+    private ActiveDiscountsPanel activeDiscountsPanel;
+
     private Transaction transaction;
     private CustomerDisplay customerDisplay;
 
@@ -77,6 +79,11 @@ public class RegisterWindow extends JFrame {
             journal.logSystem("Shutting down - closing database connection");
             database.close();
             journal.disconnect();
+
+            // Stop auto-refresh timer for active discounts panel
+            if (activeDiscountsPanel != null) {
+                activeDiscountsPanel.stopAutoRefresh();
+            }
 
             // Close customer display
             if (customerDisplay != null) {
@@ -135,6 +142,11 @@ public class RegisterWindow extends JFrame {
         vjConfigItem.addActionListener(e -> openVJConfig());
         toolsMenu.add(vjConfigItem);
 
+        JMenuItem viewPromosItem = new JMenuItem("View Active Promotions");
+        viewPromosItem.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        viewPromosItem.addActionListener(e -> showActiveDiscountsDialog());
+        toolsMenu.add(viewPromosItem);
+
         menuBar.add(toolsMenu);
         setJMenuBar(menuBar);
 
@@ -164,6 +176,30 @@ public class RegisterWindow extends JFrame {
         new org.example.DatabaseInspector(database);
     }
 
+    private void showActiveDiscountsDialog() {
+        JDialog dialog = new JDialog(this, "Active Promotions", false);
+        dialog.setLayout(new BorderLayout());
+
+        ActiveDiscountsPanel panel = new ActiveDiscountsPanel(discountService);
+        dialog.add(panel, BorderLayout.CENTER);
+
+        JButton closeButton = new JButton("Close");
+        closeButton.setFont(new Font("SansSerif", Font.BOLD, 14));
+        closeButton.addActionListener(e -> {
+            panel.stopAutoRefresh();
+            dialog.dispose();
+        });
+
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        buttonPanel.add(closeButton);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+
+        dialog.setSize(450, 600);
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
+
     private JPanel buildTransactionView() {
         JPanel view = new JPanel(new BorderLayout(20, 20));
         view.setBackground(ACCENT_COLOR);
@@ -186,6 +222,10 @@ public class RegisterWindow extends JFrame {
         rightPanel.setBackground(ACCENT_COLOR);
         rightPanel.setPreferredSize(new Dimension(500, 0));
 
+        // Create active discounts panel (embedded version)
+        activeDiscountsPanel = new ActiveDiscountsPanel(discountService);
+        activeDiscountsPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
+
         SuspendPanel suspendPanel = new SuspendPanel(
                 this::suspendTransaction,
                 this::resumeTransaction
@@ -205,16 +245,17 @@ public class RegisterWindow extends JFrame {
         paymentButtonPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 70));
         paymentButtonPanel.add(paymentButton, BorderLayout.CENTER);
 
-
         suspendPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
         transActionPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
-        quickKeysPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 300));
+        quickKeysPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 250));
         paymentButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 70));
 
+        rightPanel.add(activeDiscountsPanel);
+        rightPanel.add(Box.createRigidArea(new Dimension(0, 10)));
         rightPanel.add(suspendPanel);
-        rightPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+        rightPanel.add(Box.createRigidArea(new Dimension(0, 10)));
         rightPanel.add(transActionPanel);
-        rightPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+        rightPanel.add(Box.createRigidArea(new Dimension(0, 10)));
         rightPanel.add(quickKeysPanel);
         rightPanel.add(Box.createRigidArea(new Dimension(0, 15)));
         rightPanel.add(paymentButtonPanel);
@@ -335,8 +376,6 @@ public class RegisterWindow extends JFrame {
         }
     }
 
-    // Update the checkForPromoMessages method in RegisterWindow.java
-
     private void checkForPromoMessages(Product product) {
         String desc = product.getDescription().toUpperCase();
 
@@ -364,18 +403,14 @@ public class RegisterWindow extends JFrame {
             System.out.println("  → Beverage count: " + beverageCount);
 
             if (beverageCount % 2 == 1) {
-                // INTERACTIVE PROMO: Offer to add 1 more beverage
                 customerDisplay.showClickablePromo(
                         "⚡ Add 1 More Beverage for BOGO! ⚡",
                         (accepted) -> {
                             if (accepted) {
-                                // Customer clicked - auto-add 1 more of the same beverage
                                 transaction.addItem(product);
                                 updateDisplay();
                                 customerDisplay.updateTransaction(transaction);
                                 journal.logSystem("✓ Auto-added 1x " + product.getDescription() + " via promo click");
-
-                                // Show confirmation that they now qualify
                                 customerDisplay.showPromo("🎉 BOGO Activated! You Qualify! 🎉", 3000);
                             } else {
                                 System.out.println("📢 Customer declined beverage BOGO");
@@ -400,7 +435,6 @@ public class RegisterWindow extends JFrame {
             int remainder = (int) (polarPopCount % 3);
 
             if (remainder == 1) {
-                // Need 2 more for Buy 2 Get 1
                 customerDisplay.showClickablePromo(
                         "🥤 Add 2 More Polar Pops - Get 1 FREE! 🥤",
                         (accepted) -> {
@@ -416,7 +450,6 @@ public class RegisterWindow extends JFrame {
                         }
                 );
             } else if (remainder == 2) {
-                // Need 1 more for Buy 2 Get 1
                 customerDisplay.showClickablePromo(
                         "🥤 Add 1 More Polar Pop - Get 1 FREE! 🥤",
                         (accepted) -> {
@@ -446,17 +479,13 @@ public class RegisterWindow extends JFrame {
 
             System.out.println("  → Monster count: " + monsterCount);
 
-            // BOGO means: Buy in pairs (2, 4, 6, etc.) to get discount
-            // If customer has odd number (1, 3, 5, etc.), offer to complete the pair
             if (monsterCount % 2 == 1) {
-                // Odd number - need 1 more to complete BOGO pair
                 int needMore = 1;
 
                 customerDisplay.showClickablePromo(
                         "⚡ Add " + needMore + " More Monster for BOGO! Get 1 FREE! ⚡",
                         (accepted) -> {
                             if (accepted) {
-                                // Customer clicked - auto-add the remaining Monster(s)
                                 transaction.addItem(product, needMore);
                                 updateDisplay();
                                 customerDisplay.updateTransaction(transaction);
@@ -468,13 +497,12 @@ public class RegisterWindow extends JFrame {
                         }
                 );
             } else if (monsterCount >= 2) {
-                // Even number (2, 4, 6, etc.) - already qualifies for BOGO!
                 System.out.println("  ✓ Monster BOGO promo qualified!");
                 customerDisplay.showPromo("🎁 Monster BOGO - You Qualify! Get 1 FREE! 🎁", 5000);
             }
         }
 
-        // Check for food discount (informational only - already applies automatically)
+        // Check for food discount
         if (desc.contains("PIZZA") || desc.contains("HOT DOG") ||
                 desc.contains("BURGER") || desc.contains("DONUT") ||
                 desc.contains("SANDWICH") || desc.contains("TAQUITO") ||
@@ -493,7 +521,6 @@ public class RegisterWindow extends JFrame {
         transaction.addItem(product);
         updateDisplay();
 
-        // Update customer display
         customerDisplay.updateTransaction(transaction);
         checkForPromoMessages(product);
     }
@@ -513,7 +540,6 @@ public class RegisterWindow extends JFrame {
             return;
         }
 
-        // Update customer display with discount info
         customerDisplay.updateWithDiscount(transaction, currentDiscount);
 
         updateTenderingView();
@@ -529,9 +555,8 @@ public class RegisterWindow extends JFrame {
 
         updateDisplay();
 
-        // IMPORTANT: Force reset customer display to remove ALL discount info
-        customerDisplay.hidePromo(); // Hide the orange "SAVED $XX" banner
-        customerDisplay.updateTransaction(transaction); // Reset to normal view
+        customerDisplay.hidePromo();
+        customerDisplay.updateTransaction(transaction);
 
         cardLayout.show(cardPanel, "TRANSACTION");
     }
@@ -621,7 +646,6 @@ public class RegisterWindow extends JFrame {
                 currentDiscount
         );
 
-        // Save transaction to database
         try {
             long txId = database.saveTransaction(
                     transaction,
@@ -647,7 +671,6 @@ public class RegisterWindow extends JFrame {
 
         org.example.ui.dialogs.ReceiptDialog.showReceipt(this, receiptText);
 
-        // Show thank you on customer display
         customerDisplay.showThankYou(total, discount);
 
         completeTransaction();
@@ -725,7 +748,7 @@ public class RegisterWindow extends JFrame {
 
         Object[] message = {
                 String.format("Total: $%.2f", currentDiscount.total),
-                "Enter cash tendered (max 7 digits):",
+                "Enter cash tendered: ",
                 cashField
         };
 
@@ -793,7 +816,6 @@ public class RegisterWindow extends JFrame {
             transaction.voidItem(selectedRow);
             updateDisplay();
 
-            // Update customer display
             customerDisplay.updateTransaction(transaction);
         }
     }
@@ -894,7 +916,6 @@ public class RegisterWindow extends JFrame {
                     journal.logQuantityChange(product, oldQty, newQty);
                     updateDisplay();
 
-                    // Update customer display
                     customerDisplay.updateTransaction(transaction);
                 } else {
                     JOptionPane.showMessageDialog(this, "Invalid quantity");
@@ -906,7 +927,6 @@ public class RegisterWindow extends JFrame {
     }
 
     private void voidTransaction() {
-        // Check if there are items to void
         if (transaction.getItemCount() == 0) {
             JOptionPane.showMessageDialog(this,
                     "No transaction to void",
@@ -915,7 +935,6 @@ public class RegisterWindow extends JFrame {
             return;
         }
 
-        // Show confirmation dialog with transaction details
         int confirm = JOptionPane.showConfirmDialog(this,
                 String.format("Are you sure you want to VOID this entire transaction?\n\n" +
                                 "Items: %d\n" +
@@ -927,24 +946,19 @@ public class RegisterWindow extends JFrame {
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.WARNING_MESSAGE);
 
-        // Only void if user confirms
         if (confirm != JOptionPane.YES_OPTION) {
             return;
         }
 
-        // Log the void
         journal.logTransaction("VOIDED", transaction.getTotal());
 
-        // Clear transaction
         currentDiscount = null;
         transaction.clear();
         updateDisplay();
         scanGunListener.reset();
 
-        // Reset customer display
         customerDisplay.showAttractScreen();
 
-        // Optional: Show confirmation that void was successful
         JOptionPane.showMessageDialog(this,
                 "Transaction has been voided",
                 "Transaction Voided",
@@ -990,7 +1004,6 @@ public class RegisterWindow extends JFrame {
             updateDisplay();
             scanGunListener.reset();
 
-            // Reset customer display
             customerDisplay.showAttractScreen();
         }
     }
@@ -1019,7 +1032,6 @@ public class RegisterWindow extends JFrame {
                 currentDiscount = null;
                 updateDisplay();
 
-                // Update customer display
                 customerDisplay.updateTransaction(transaction);
 
                 journal.logTransaction("RESUMED (ID: " + suspended.id() + ")", transaction.getTotal());
