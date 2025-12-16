@@ -17,6 +17,8 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.io.File;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class RegisterWindow extends JFrame {
     private final TransactionDatabase database;
@@ -47,6 +49,10 @@ public class RegisterWindow extends JFrame {
 
     private DiscountService.DiscountResponse currentDiscount;
 
+    // ADDED: QuickKeysPanel reference and refresh timer
+    private QuickKeysPanel quickKeysPanel;
+    private Timer popularProductsRefreshTimer;
+
     private static final Color PRIMARY_COLOR = new Color(25, 118, 210);
     private static final Color ACCENT_COLOR = new Color(245, 245, 250);
     private static final Color SUCCESS_COLOR = new Color(76, 175, 80);
@@ -69,11 +75,19 @@ public class RegisterWindow extends JFrame {
         customerDisplay = new CustomerDisplay();
         customerDisplay.showAttractScreen();
 
+        // ADDED: Start periodic refresh of popular products
+        startPopularProductsRefreshTimer();
+
         journal.logSystem("Register initialized with " + database.getProductCount() + " products");
     }
 
     private void setupShutdownHook() {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            // ADDED: Stop refresh timer
+            if (popularProductsRefreshTimer != null) {
+                popularProductsRefreshTimer.stop();
+            }
+
             journal.logSystem("Shutting down - closing database connection");
             database.close();
             journal.disconnect();
@@ -197,7 +211,11 @@ public class RegisterWindow extends JFrame {
                 this::voidTransaction
         );
 
-        QuickKeysPanel quickKeysPanel = new QuickKeysPanel(this::processQuickKey);
+        // CHANGED: Store reference to QuickKeysPanel
+        quickKeysPanel = new QuickKeysPanel(this::processQuickKey);
+
+        // ADDED: Load initial popular products
+        loadPopularProducts();
 
         JButton paymentButton = createLargeButton("PROCEED TO PAYMENT", SUCCESS_COLOR, this::enterTenderingMode);
         JPanel paymentButtonPanel = new JPanel(new BorderLayout());
@@ -307,6 +325,105 @@ public class RegisterWindow extends JFrame {
                 .addKeyEventDispatcher(scanGunListener);
     }
 
+    // ADDED: Load popular products and update quick keys
+    /**
+     * Loads the top 9 selling products and updates the quick keys panel
+     * This should be called:
+     * - During initialization
+     * - After completing a transaction
+     * - Periodically (via timer)
+     */
+    private void loadPopularProducts() {
+        try {
+            // Get top 9 products from last 30 days
+            List<Product> topProducts = database.getTopSellingProducts(9, 30);
+
+            // If we have less than 9 products (new system or low sales),
+            // add some default fallback products
+            if (topProducts.size() < 9) {
+                topProducts = getFallbackProducts(topProducts);
+            }
+
+            quickKeysPanel.updateQuickKeys(topProducts);
+
+            journal.logSystem("Loaded " + topProducts.size() + " popular products for quick keys");
+
+        } catch (Exception e) {
+            journal.logSystem("Failed to load popular products: " + e.getMessage());
+            e.printStackTrace();
+
+            // Load default products as fallback
+            List<Product> defaults = getDefaultProducts();
+            quickKeysPanel.updateQuickKeys(defaults);
+        }
+    }
+
+    /**
+     * Provides fallback products when there's insufficient sales data
+     */
+    private List<Product> getFallbackProducts(List<Product> existing) {
+        List<Product> fallbacks = new ArrayList<>(existing);
+
+        // Add common convenience store items if not already in the list
+        String[] defaultUPCs = {
+                "999999955678", // Hot Dog
+                "999991218955", // Coffee Med
+                "999999937551", // Polar Pop M
+                "049000000443", // Donut
+                "070847811169", // Monster
+                "611269818994", // Red Bull
+                "012000001291", // Coke 20oz
+                "194283301326", // Water 16oz
+                "040000002635"  // Snickers
+        };
+
+        for (String upc : defaultUPCs) {
+            if (fallbacks.size() >= 9) break;
+
+            // Check if this UPC is already in the list
+            boolean exists = fallbacks.stream()
+                    .anyMatch(p -> p.getUpc().equals(upc));
+
+            if (!exists) {
+                Product defaultProduct = database.findProductByUPC(upc);
+                if (defaultProduct != null) {
+                    fallbacks.add(defaultProduct);
+                }
+            }
+        }
+
+        return fallbacks;
+    }
+
+    /**
+     * Gets hardcoded default products if database lookup fails
+     */
+    private List<Product> getDefaultProducts() {
+        List<Product> defaults = new ArrayList<>();
+        defaults.add(new Product("999999955678", "Hot Dog", 2.69));
+        defaults.add(new Product("999991218955", "Coffee Med", 2.09));
+        defaults.add(new Product("999999937551", "Polar Pop M", 0.89));
+        defaults.add(new Product("049000000443", "Donut", 2.49));
+        defaults.add(new Product("070847811169", "Monster", 3.29));
+        defaults.add(new Product("611269818994", "Red Bull", 3.79));
+        defaults.add(new Product("012000001291", "Coke 20oz", 2.69));
+        defaults.add(new Product("194283301326", "Water 16oz", 1.35));
+        defaults.add(new Product("040000002635", "Snickers", 3.19));
+        return defaults;
+    }
+
+    /**
+     * ADDED: Start timer to periodically refresh popular products every 5 minutes
+     */
+    private void startPopularProductsRefreshTimer() {
+        // Refresh popular products every 5 minutes
+        popularProductsRefreshTimer = new Timer(5 * 60 * 1000, e -> {
+            journal.logSystem("Auto-refreshing popular products...");
+            loadPopularProducts();
+        });
+        popularProductsRefreshTimer.start();
+    }
+
     private void processUPC(String upc, String source) {
         if (currentMode == RegisterMode.TENDERING) {
             journal.logSystem("SCAN BLOCKED - Currently in tendering mode");
@@ -334,8 +451,6 @@ public class RegisterWindow extends JFrame {
                     "Not Found", JOptionPane.WARNING_MESSAGE);
         }
     }
-
-    // Update the checkForPromoMessages method in RegisterWindow.java
 
     private void checkForPromoMessages(Product product) {
         String desc = product.getDescription().toUpperCase();
@@ -651,6 +766,9 @@ public class RegisterWindow extends JFrame {
         customerDisplay.showThankYou(total, discount);
 
         completeTransaction();
+
+        // ADDED: Refresh popular products after transaction
+        loadPopularProducts();
 
         currentMode = RegisterMode.TRANSACTION;
         scanGunListener.setEnabled(true);

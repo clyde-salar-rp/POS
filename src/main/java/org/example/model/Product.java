@@ -25,6 +25,14 @@ public class Product {
         this.quantity = other.quantity;
     }
 
+    public String getName() {
+        // Truncate long descriptions for quick key display
+        if (description.length() > 20) {
+            return description.substring(0, 17) + "...";
+        }
+        return description;
+    }
+
     public double getLineTotal() {
         return price * quantity;
     }

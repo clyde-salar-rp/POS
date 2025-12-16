@@ -4,19 +4,22 @@ import org.example.model.Product;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.util.List;
 import java.util.function.Consumer;
 
 public class QuickKeysPanel extends JPanel {
     private static final Color CARD_BG = Color.WHITE;
     private static final Color QUICK_KEY_COLOR = new Color(0, 150, 136); // Teal
+    private Consumer<Product> onQuickKey;
 
     public QuickKeysPanel(Consumer<Product> onQuickKey) {
+        this.onQuickKey = onQuickKey;
         setLayout(new GridLayout(3, 3, 12, 12));
         setBackground(CARD_BG);
         setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createTitledBorder(
                         BorderFactory.createLineBorder(new Color(224, 224, 224), 1),
-                        "Quick Keys",
+                        "Quick Keys - Top Sellers",
                         javax.swing.border.TitledBorder.LEFT,
                         javax.swing.border.TitledBorder.TOP,
                         new Font("SansSerif", Font.BOLD, 14),
@@ -24,17 +27,32 @@ public class QuickKeysPanel extends JPanel {
                 ),
                 new EmptyBorder(15, 15, 15, 15)
         ));
+    }
 
-        // Popular items based on pricebook
-        addQuickKey("Hot Dog", 2.69, "999999955678", onQuickKey);
-        addQuickKey("Coffee Med", 2.09, "999991218955", onQuickKey);
-        addQuickKey("Polar Pop M", 0.89, "999999937551", onQuickKey);
-        addQuickKey("Donut", 2.49, "049000000443", onQuickKey);
-        addQuickKey("Monster", 3.29, "070847811169", onQuickKey);
-        addQuickKey("Red Bull", 3.79, "611269818994", onQuickKey);
-        addQuickKey("Coke 20oz", 2.69, "012000001291", onQuickKey);
-        addQuickKey("Water 16oz", 1.35, "194283301326", onQuickKey);
-        addQuickKey("Snickers", 3.19, "040000002635", onQuickKey);
+    /**
+     * Updates the quick keys with the most popular products
+     * @param popularProducts List of products sorted by popularity (most popular first)
+     */
+    public void updateQuickKeys(List<Product> popularProducts) {
+        removeAll();
+
+        // Add up to 9 products
+        int count = Math.min(9, popularProducts.size());
+        for (int i = 0; i < count; i++) {
+            Product product = popularProducts.get(i);
+            addQuickKey(product.getName(), product.getPrice(), product.getUpc(), onQuickKey);
+        }
+
+        // Fill remaining slots with empty panels if less than 9 products
+        for (int i = count; i < 9; i++) {
+            JPanel emptyPanel = new JPanel();
+            emptyPanel.setBackground(new Color(240, 240, 240));
+            emptyPanel.setBorder(BorderFactory.createLineBorder(new Color(220, 220, 220), 1));
+            add(emptyPanel);
+        }
+
+        revalidate();
+        repaint();
     }
 
     private void addQuickKey(String name, double price, String upc, Consumer<Product> action) {

@@ -690,6 +690,93 @@ public class TransactionDatabase {
 
         return items;
     }
+    // Add this method to your TransactionDatabase class
+
+    /**
+     * Gets the top N most popular products based on sales quantity over the last X days
+     * @param topN Number of top products to return (e.g., 9 for quick keys)
+     * @param daysBack Number of days to look back (e.g., 30 for last month)
+     * @return List of top selling products sorted by quantity sold (most to least)
+     */
+    public List<Product> getTopSellingProducts(int topN, int daysBack) {
+        List<Product> topProducts = new ArrayList<>();
+
+        String sql = """
+        SELECT 
+            ti.upc,
+            ti.description,
+            p.price,
+            SUM(ti.quantity) as total_quantity,
+            COUNT(DISTINCT ti.transaction_id) as transaction_count
+        FROM transaction_items ti
+        INNER JOIN transactions t ON ti.transaction_id = t.id
+        LEFT JOIN products p ON ti.upc = p.upc
+        WHERE t.status IN ('COMPLETED', 'CASH', 'CARD', 'CHECK')
+            AND t.transaction_date >= DATEADD('DAY', -?, CURRENT_TIMESTAMP)
+        GROUP BY ti.upc, ti.description, p.price
+        ORDER BY total_quantity DESC
+        LIMIT ?
+    """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, daysBack);
+            stmt.setInt(2, topN);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    String upc = rs.getString("upc");
+                    String description = rs.getString("description");
+                    double price = rs.getDouble("price");
+
+                    // If price is not in products table, use the most recent price from transaction_items
+                    if (price == 0.0) {
+                        price = getMostRecentPrice(upc);
+                    }
+
+                    topProducts.add(new Product(upc, description, price));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting top selling products: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return topProducts;
+    }
+
+    /**
+     * Gets the most recent price for a product from transaction history
+     * Used as fallback when product is not in products table
+     */
+    private double getMostRecentPrice(String upc) {
+        String sql = """
+        SELECT price 
+        FROM transaction_items 
+        WHERE upc = ? 
+        ORDER BY id DESC 
+        LIMIT 1
+    """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, upc);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getDouble("price");
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting recent price: " + e.getMessage());
+        }
+
+        return 0.0;
+    }
+
+    /**
+     * Gets top selling products with a default 30-day lookback
+     */
+    public List<Product> getTopSellingProducts(int topN) {
+        return getTopSellingProducts(topN, 30);
+    }
 
     public PaymentMethodReport getPaymentMethodReport(LocalDateTime startDate, LocalDateTime endDate)
             throws SQLException {
