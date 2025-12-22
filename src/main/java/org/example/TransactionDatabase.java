@@ -132,7 +132,7 @@ public class TransactionDatabase {
         }
     }
 
-    // ========== PRODUCT MANAGEMENT (Replaces ProductDatabase) ==========
+    // ========== PRODUCT MANAGEMENT ==========
 
     public void loadProductsFromTSV(String filePath) throws java.io.IOException, SQLException {
         String insertSQL = """
