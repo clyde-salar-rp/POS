@@ -143,6 +143,11 @@ public class RegisterWindow extends JFrame {
         vjConfigItem.addActionListener(e -> openVJConfig());
         toolsMenu.add(vjConfigItem);
 
+        JMenuItem manageRulesItem = new JMenuItem("Manage Discount Rules");
+        manageRulesItem.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        manageRulesItem.addActionListener(e -> openDiscountRuleManager());
+        toolsMenu.add(manageRulesItem);
+
         JMenuItem viewPromosItem = new JMenuItem("View Active Promotions");
         viewPromosItem.setFont(new Font("SansSerif", Font.PLAIN, 12));
         viewPromosItem.addActionListener(e -> showActiveDiscountsDialog());
@@ -175,6 +180,12 @@ public class RegisterWindow extends JFrame {
 
     private void openDatabaseInspector() {
         new org.example.DatabaseInspector(database);
+    }
+    private void openDiscountRuleManager() {
+        SwingUtilities.invokeLater(() -> {
+            DiscountRuleManager manager = new DiscountRuleManager();
+            manager.setVisible(true);
+        });
     }
 
     private void showActiveDiscountsDialog() {
